@@ -29,43 +29,79 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 30px rgba(100, 100, 255, 0.3);
     max-width: 95vw;
-    max-height: 40vh;
+    max-height: 35vh;
 }
 
 /* HUD */
 #hud {
     position: fixed;
-    top: 10px;
+    top: 8px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 20px;
+    gap: 12px;
     align-items: center;
-    background: rgba(20, 20, 40, 0.9);
-    padding: 10px 20px;
-    border-radius: 20px;
+    background: rgba(20, 20, 40, 0.95);
+    padding: 8px 16px;
+    border-radius: 15px;
     border: 2px solid #4a4a7c;
-    font-size: 18px;
+    font-size: 14px;
     color: #fff;
     z-index: 10;
 }
 
-#coins {
+#timer {
     color: #6ee7ff;
-    text-shadow: 0 0 10px #6ee7ff;
+}
+
+#stage {
+    color: #ff6b9d;
+}
+
+#coins {
+    color: #ffd700;
 }
 
 #level {
-    color: #ffd700;
-    text-shadow: 0 0 10px #ffd700;
+    color: #c44cff;
+}
+
+/* Progress Bar */
+#progress-bar {
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 8px;
+    background: #2a2a4a;
+    border-radius: 4px;
+    border: 1px solid #4a4a7c;
+    z-index: 10;
+}
+
+#progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #44ff44, #88ff88);
+    border-radius: 4px;
+    transition: width 0.3s;
+}
+
+/* XP Bar */
+#xp-container {
+    position: fixed;
+    bottom: 180px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
 }
 
 #xp-bar {
-    width: 100px;
-    height: 12px;
+    width: 150px;
+    height: 10px;
     background: #2a2a4a;
-    border-radius: 6px;
-    overflow: hidden;
+    border-radius: 5px;
     border: 1px solid #4a4a7c;
 }
 
@@ -73,14 +109,14 @@ body {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #ff6b9d, #c44cff);
-    transition: width 0.3s ease;
-    box-shadow: 0 0 10px #c44cff;
+    border-radius: 5px;
+    transition: width 0.3s;
 }
 
 /* Controls */
 #controls {
     position: fixed;
-    bottom: 30px;
+    bottom: 25px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -96,33 +132,30 @@ body {
 }
 
 .ctrl-btn {
-    width: 60px;
-    height: 60px;
+    width: 55px;
+    height: 55px;
     background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
     border: 3px solid #4a4a7c;
     border-radius: 12px;
     color: #8888cc;
-    font-size: 24px;
+    font-size: 22px;
     cursor: pointer;
-    transition: all 0.1s;
     -webkit-tap-highlight-color: transparent;
 }
 
 .ctrl-btn:active {
     background: linear-gradient(145deg, #4a4a7c, #3a3a5c);
-    transform: scale(0.95);
     border-color: #6ee7ff;
     color: #6ee7ff;
-    box-shadow: 0 0 15px rgba(110, 231, 255, 0.5);
 }
 
 /* Reward Popup */
 #reward-popup {
-    position: absolute;
-    top: 50%;
+    position: fixed;
+    top: 40%;
     left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 100;
+    z-index: 200;
     animation: popIn 0.3s ease;
 }
 
@@ -134,92 +167,58 @@ body {
     background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
     border: 3px solid #ffd700;
     border-radius: 15px;
-    padding: 20px 30px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    padding: 15px 25px;
     box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-}
-
-.reward-icon {
-    font-size: 32px;
-    animation: bounce 0.5s ease infinite;
 }
 
 .reward-text {
     color: #ffd700;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
-    text-shadow: 0 0 10px #ffd700;
 }
 
 @keyframes popIn {
     0% {
         transform: translate(-50%, -50%) scale(0);
-        opacity: 0;
     }
 
     50% {
-        transform: translate(-50%, -50%) scale(1.2);
+        transform: translate(-50%, -50%) scale(1.1);
     }
 
     100% {
         transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
     }
 }
 
-@keyframes bounce {
-
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-5px);
-    }
-}
-
-/* Sparkle animation for collectibles */
-@keyframes sparkle {
-
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    50% {
-        opacity: 0.7;
-        transform: scale(1.1);
-    }
-}
-
-/* Mobile optimizations */
+/* Mobile */
 @media (max-width: 480px) {
     #hud {
-        font-size: 12px;
-        padding: 6px 12px;
+        font-size: 11px;
+        padding: 6px 10px;
         gap: 8px;
-        top: 5px;
     }
 
-    #xp-bar {
-        width: 50px;
+    #progress-bar {
+        width: 150px;
+        top: 45px;
     }
 
     #game-canvas {
-        max-height: 35vh;
-    }
-
-    #controls {
-        bottom: 20px;
+        max-height: 30vh;
     }
 
     .ctrl-btn {
-        width: 50px;
-        height: 50px;
+        width: 48px;
+        height: 48px;
         font-size: 18px;
+    }
+
+    #xp-container {
+        bottom: 160px;
+    }
+
+    #xp-bar {
+        width: 120px;
     }
 }

@@ -1,24 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pixel Quest</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div id="game-container">
         <div id="hud">
+            <div id="timer">⏱️ <span id="timer-count">60</span></div>
+            <div id="stage">📍 <span id="stage-count">1</span></div>
             <div id="coins">💎 <span id="coin-count">0</span></div>
-            <div id="level">⭐ Lv.<span id="level-count">1</span></div>
+            <div id="level">⭐ <span id="level-count">1</span></div>
+        </div>
+        <div id="progress-bar">
+            <div id="progress-fill"></div>
+        </div>
+        <canvas id="game-canvas"></canvas>
+        <div id="xp-container">
             <div id="xp-bar">
                 <div id="xp-fill"></div>
             </div>
         </div>
-        <canvas id="game-canvas"></canvas>
         <div id="reward-popup" class="hidden">
             <div class="reward-content">
-                <span class="reward-icon">🎁</span>
                 <span class="reward-text"></span>
             </div>
         </div>
@@ -33,4 +41,5 @@
     </div>
     <script src="game.js"></script>
 </body>
+
 </html>
