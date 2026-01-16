@@ -29,12 +29,12 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 30px rgba(100, 100, 255, 0.3);
     max-width: 95vw;
-    max-height: 60vh;
+    max-height: 40vh;
 }
 
 /* HUD */
 #hud {
-    position: absolute;
+    position: fixed;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
@@ -79,12 +79,15 @@ body {
 
 /* Controls */
 #controls {
-    position: absolute;
-    bottom: 20px;
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 5px;
+    z-index: 100;
 }
 
 .ctrl-row {
@@ -151,37 +154,72 @@ body {
 }
 
 @keyframes popIn {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    50% { transform: translate(-50%, -50%) scale(1.2); }
-    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
 }
 
 @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
 }
 
 /* Sparkle animation for collectibles */
 @keyframes sparkle {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.7; transform: scale(1.1); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
 }
 
 /* Mobile optimizations */
 @media (max-width: 480px) {
     #hud {
-        font-size: 14px;
-        padding: 8px 15px;
-        gap: 10px;
+        font-size: 12px;
+        padding: 6px 12px;
+        gap: 8px;
+        top: 5px;
     }
-    
+
     #xp-bar {
-        width: 60px;
+        width: 50px;
     }
-    
+
+    #game-canvas {
+        max-height: 35vh;
+    }
+
+    #controls {
+        bottom: 20px;
+    }
+
     .ctrl-btn {
-        width: 55px;
-        height: 55px;
-        font-size: 20px;
+        width: 50px;
+        height: 50px;
+        font-size: 18px;
     }
 }
