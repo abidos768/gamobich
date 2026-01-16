@@ -15,6 +15,7 @@
             <div id="stage">📍 <span id="stage-count">1</span></div>
             <div id="coins">💎 <span id="coin-count">0</span></div>
             <div id="level">⭐ <span id="level-count">1</span></div>
+            <button id="settings-btn">⚙️</button>
         </div>
         <div id="progress-bar">
             <div id="progress-fill"></div>
@@ -30,6 +31,31 @@
                 <span class="reward-text"></span>
             </div>
         </div>
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="hidden">
+            <div class="settings-content">
+                <h3>⚙️ Controls</h3>
+                <div class="setting-row">
+                    <span>Button Size</span>
+                    <input type="range" id="btn-size" min="40" max="80" value="55">
+                </div>
+                <div class="setting-row">
+                    <span>Position</span>
+                    <select id="ctrl-position">
+                        <option value="center">Center</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <span>Bottom Offset</span>
+                    <input type="range" id="btn-offset" min="10" max="100" value="25">
+                </div>
+                <button id="close-settings">Save & Close</button>
+            </div>
+        </div>
+
         <div id="controls">
             <button id="btn-up" class="ctrl-btn">▲</button>
             <div class="ctrl-row">

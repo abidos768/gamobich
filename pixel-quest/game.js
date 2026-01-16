@@ -430,6 +430,81 @@ document.addEventListener('keydown', (e) => {
     if (keys[e.key]) movePlayer(...keys[e.key]);
 });
 
+// ===== SETTINGS =====
+const settingsPanel = document.getElementById('settings-panel');
+const settingsBtn = document.getElementById('settings-btn');
+const closeSettings = document.getElementById('close-settings');
+const btnSizeSlider = document.getElementById('btn-size');
+const ctrlPosition = document.getElementById('ctrl-position');
+const btnOffset = document.getElementById('btn-offset');
+const controls = document.getElementById('controls');
+
+// Load saved settings
+function loadSettings() {
+    const saved = localStorage.getItem('pixelquest-settings');
+    if (saved) {
+        const settings = JSON.parse(saved);
+        btnSizeSlider.value = settings.size || 55;
+        ctrlPosition.value = settings.position || 'center';
+        btnOffset.value = settings.offset || 25;
+        applySettings();
+    }
+}
+
+// Apply settings
+function applySettings() {
+    const size = btnSizeSlider.value + 'px';
+    const position = ctrlPosition.value;
+    const offset = btnOffset.value + 'px';
+
+    document.querySelectorAll('.ctrl-btn').forEach(btn => {
+        btn.style.width = size;
+        btn.style.height = size;
+        btn.style.fontSize = (parseInt(btnSizeSlider.value) * 0.4) + 'px';
+    });
+
+    controls.style.bottom = offset;
+
+    if (position === 'center') {
+        controls.style.left = '50%';
+        controls.style.transform = 'translateX(-50%)';
+    } else if (position === 'left') {
+        controls.style.left = '20px';
+        controls.style.transform = 'none';
+    } else if (position === 'right') {
+        controls.style.left = 'auto';
+        controls.style.right = '20px';
+        controls.style.transform = 'none';
+    }
+}
+
+// Save settings
+function saveSettings() {
+    const settings = {
+        size: btnSizeSlider.value,
+        position: ctrlPosition.value,
+        offset: btnOffset.value
+    };
+    localStorage.setItem('pixelquest-settings', JSON.stringify(settings));
+}
+
+// Event listeners
+settingsBtn.addEventListener('click', () => {
+    settingsPanel.classList.remove('hidden');
+    gameActive = false;
+});
+
+closeSettings.addEventListener('click', () => {
+    settingsPanel.classList.add('hidden');
+    saveSettings();
+    gameActive = true;
+});
+
+btnSizeSlider.addEventListener('input', applySettings);
+ctrlPosition.addEventListener('change', applySettings);
+btnOffset.addEventListener('input', applySettings);
+
 // Init
+loadSettings();
 loadStage(1);
 gameLoop();

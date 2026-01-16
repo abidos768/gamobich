@@ -222,3 +222,83 @@ body {
         width: 120px;
     }
 }
+
+/* Settings Button */
+#settings-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+/* Settings Panel */
+#settings-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+}
+
+#settings-panel.hidden {
+    display: none;
+}
+
+.settings-content {
+    background: #1a1a2e;
+    border: 3px solid #4a4a7c;
+    border-radius: 15px;
+    padding: 20px;
+    min-width: 250px;
+}
+
+.settings-content h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    color: #aaa;
+    font-size: 14px;
+}
+
+.setting-row input[type="range"] {
+    width: 100px;
+    accent-color: #6ee7ff;
+}
+
+.setting-row select {
+    background: #2a2a4a;
+    color: #fff;
+    border: 1px solid #4a4a7c;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+#close-settings {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    background: linear-gradient(145deg, #4a4a7c, #3a3a5c);
+    border: 2px solid #6ee7ff;
+    border-radius: 8px;
+    color: #6ee7ff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#close-settings:active {
+    background: #6ee7ff;
+    color: #1a1a2e;
+}
