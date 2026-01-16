@@ -208,12 +208,6 @@ body {
         max-height: 30vh;
     }
 
-    .ctrl-btn {
-        width: 48px;
-        height: 48px;
-        font-size: 18px;
-    }
-
     #xp-container {
         bottom: 160px;
     }
