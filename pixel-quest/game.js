@@ -103,9 +103,44 @@ let map = stages[0];
 
 const tileColors = { 0: '#1a1a2e', 1: '#3a3a5c', 2: '#2a4a2a', 3: '#1a3a5a' };
 
+// Generate random map for stages after 5
+function generateRandomMap() {
+    const newMap = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        const row = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            // Walls on edges
+            if (y === 0 || y === MAP_HEIGHT - 1 || x === 0 || x === MAP_WIDTH - 1) {
+                row.push(1);
+            }
+            // Keep player spawn area clear
+            else if (Math.abs(x - 5) <= 1 && Math.abs(y - 5) <= 1) {
+                row.push(0);
+            }
+            // Random obstacles
+            else {
+                const rand = Math.random();
+                if (rand < 0.08) row.push(1);       // Wall 8%
+                else if (rand < 0.12) row.push(2);  // Grass 4%
+                else if (rand < 0.15) row.push(3);  // Water 3%
+                else row.push(0);                    // Floor
+            }
+        }
+        newMap.push(row);
+    }
+    return newMap;
+}
+
 function loadStage(stageNum) {
     stage = stageNum;
-    map = stages[(stageNum - 1) % stages.length];
+
+    // Use preset maps for stages 1-5, random after
+    if (stageNum <= 5) {
+        map = stages[stageNum - 1];
+    } else {
+        map = generateRandomMap();
+    }
+
     player.x = 5;
     player.y = 5;
     collectiblesNeeded = 3 + stage * 2;
@@ -115,8 +150,14 @@ function loadStage(stageNum) {
     spawnCollectibles();
     spawnTriggers();
     updateHUD();
-    showReward(`⭐ STAGE ${stage} - Collect ${collectiblesNeeded}!`);
+
+    if (stageNum > 5) {
+        showReward(`🎲 RANDOM STAGE ${stage}!`);
+    } else {
+        showReward(`⭐ STAGE ${stage} - Collect ${collectiblesNeeded}!`);
+    }
 }
+
 
 function spawnCollectibles() {
     collectibles = [];
