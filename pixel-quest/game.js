@@ -58,7 +58,8 @@ const sounds = {
     win: { type: 'triangle', freq: 400, end: 800, dur: 0.5 },
     chest: { type: 'sine', freq: 600, end: 1200, dur: 0.4 },
     attack: { type: 'sawtooth', freq: 300, end: 100, dur: 0.15 },
-    enemyDeath: { type: 'square', freq: 200, end: 50, dur: 0.2 }
+    enemyDeath: { type: 'square', freq: 200, end: 50, dur: 0.2 },
+    powerup: { type: 'sine', freq: 500, end: 900, dur: 0.3 }
 };
 
 function initAudio() {
@@ -363,7 +364,26 @@ const stages = [
 
 let map = stages[0];
 
-const tileColors = { 0: '#1a1a2e', 1: '#3a3a5c', 2: '#2a4a2a', 3: '#1a3a5a' };
+const biomes = {
+    forest: {
+        0: '#1a1a2e', 1: '#5a5a8c', 2: '#3a6a3a', 3: '#2a4a7a'
+    },
+    ice: {
+        0: '#e0f7fa', // Floor (Ice)
+        1: '#006064', // Wall (Dark Ice)
+        2: '#80deea', // Obstacle (Ice Block)
+        3: '#00bcd4'  // Water (Deep Water)
+    },
+    lava: {
+        0: '#212121', // Floor (Dark Rock)
+        1: '#b71c1c', // Wall (Red Rock)
+        2: '#ff5722', // Obstacle (Hot Rock)
+        3: '#bf360c'  // Lava
+    }
+};
+
+let currentBiome = biomes.forest;
+const tileColors = biomes.forest; // Fallback? Unused if we use currentBiome
 
 // Generate random map for stages after 5
 function generateRandomMap() {
@@ -396,6 +416,17 @@ function generateRandomMap() {
 function loadStage(stageNum) {
     stage = stageNum;
 
+    // Biome Selection
+    if (stage <= 2) currentBiome = biomes.forest;
+    else if (stage <= 4) currentBiome = biomes.ice;
+    else if (stage === 5) currentBiome = biomes.lava; // Boss
+    else {
+        // Random biome for infinite stages
+        const keys = Object.keys(biomes);
+        currentBiome = biomes[keys[Math.floor(Math.random() * keys.length)]];
+    }
+
+
     // Use preset maps for stages 1-5, random after
     if (stageNum <= 5) {
         map = stages[stageNum - 1];
@@ -424,10 +455,12 @@ function loadStage(stageNum) {
     } else if (stageNum > 5) {
         showReward(`🎲 RANDOM STAGE ${stage}!`);
         spawnCollectibles();
+        spawnStageHeart();
         spawnEnemies();
     } else {
         showReward(`⭐ STAGE ${stage} - Collect ${collectiblesNeeded}!`);
         spawnCollectibles();
+        spawnStageHeart();
         spawnEnemies();
     }
 
@@ -525,6 +558,49 @@ function spawnCollectibles() {
         if (tries < 100) {
             const type = types[Math.floor(Math.random() * types.length)];
             collectibles.push({ x, y, ...type, animOffset: Math.random() * Math.PI * 2 });
+        }
+    }
+}
+
+// Spawn guaranteed hearts every 2 stages
+function spawnStageHeart() {
+    // Spawn a heart every 2 stages (stage 2, 4, 6, etc.) if player is missing health
+    if (stage % 2 === 0 && stage !== 5) { // Skip boss stage
+        let x, y, tries = 0;
+        do {
+            x = Math.floor(Math.random() * (MAP_WIDTH - 4)) + 2;
+            y = Math.floor(Math.random() * (MAP_HEIGHT - 4)) + 2;
+            tries++;
+        } while ((map[y][x] !== 0 || (x === player.x && y === player.y) ||
+            collectibles.some(c => c.x === x && c.y === y)) && tries < 50);
+
+        if (tries < 50) {
+            collectibles.push({
+                x, y,
+                emoji: '❤️', value: 0, xp: 0, heal: 1,
+                animOffset: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    // Spawn 2 hearts on harder stages (every 3rd stage after stage 6)
+    if (stage > 6 && stage % 3 === 0) {
+        for (let i = 0; i < 2; i++) {
+            let x, y, tries = 0;
+            do {
+                x = Math.floor(Math.random() * (MAP_WIDTH - 4)) + 2;
+                y = Math.floor(Math.random() * (MAP_HEIGHT - 4)) + 2;
+                tries++;
+            } while ((map[y][x] !== 0 || (x === player.x && y === player.y) ||
+                collectibles.some(c => c.x === x && c.y === y)) && tries < 50);
+
+            if (tries < 50) {
+                collectibles.push({
+                    x, y,
+                    emoji: '❤️', value: 0, xp: 0, heal: 1,
+                    animOffset: Math.random() * Math.PI * 2
+                });
+            }
         }
     }
 }
@@ -699,13 +775,13 @@ function showReward(text) {
     const popup = document.getElementById('reward-popup');
     popup.querySelector('.reward-text').textContent = text;
     popup.classList.remove('hidden');
-    setTimeout(() => popup.classList.add('hidden'), 1500);
+    setTimeout(() => popup.classList.add('hidden'), 1000);
 }
 
 function drawMap() {
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            ctx.fillStyle = tileColors[map[y][x]];
+            ctx.fillStyle = currentBiome[map[y][x]];
             ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
             ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -1080,8 +1156,7 @@ function loadGame() {
         level = state.level || 1;
         xpToNext = state.xpToNext || 50;
         stage = state.stage || 1;
-        health = state.health || 3;
-        maxHealth = state.maxHealth || 3;
+        health = state.health || maxHealth;
     }
 }
 

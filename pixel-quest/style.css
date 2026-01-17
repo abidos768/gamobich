@@ -176,11 +176,11 @@ body {
 /* Reward Popup */
 #reward-popup {
     position: fixed;
-    top: 40%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: 60px;
+    right: 10px;
     z-index: 200;
-    animation: popIn 0.3s ease;
+    animation: slideIn 0.2s ease;
+    pointer-events: none;
 }
 
 #reward-popup.hidden {
@@ -188,17 +188,27 @@ body {
 }
 
 .reward-content {
-    background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
-    border: 3px solid #ffd700;
-    border-radius: 15px;
-    padding: 15px 25px;
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    background: rgba(26, 26, 46, 0.95);
+    border: 2px solid #ffd700;
+    border-radius: 8px;
+    padding: 5px 10px;
 }
 
 .reward-text {
     color: #ffd700;
-    font-size: 16px;
+    font-size: 11px;
     font-weight: bold;
+}
+
+@keyframes slideIn {
+    0% {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes popIn {

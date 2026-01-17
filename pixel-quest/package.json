@@ -1,0 +1,14 @@
+{
+  "name": "pixel-quest",
+  "version": "1.0.0",
+  "description": "A pixel art adventure game",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build needed'",
+    "cap:add:android": "npx cap add android",
+    "cap:open:android": "npx cap open android",
+    "cap:sync": "npx cap sync"
+  },
+  "author": "",
+  "license": "MIT"
+}

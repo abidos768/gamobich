@@ -1,0 +1,8 @@
+{
+  "appId": "com.pixelquest.game",
+  "appName": "Pixel Quest",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https"
+  }
+}
