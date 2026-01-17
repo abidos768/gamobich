@@ -149,6 +149,27 @@ body {
     color: #6ee7ff;
 }
 
+.ctrl-action {
+    width: 65px;
+    height: 65px;
+    background: linear-gradient(145deg, #5c2a2a, #2e1a1a);
+    border: 3px solid #ff4444;
+    border-radius: 50%;
+    color: #ff4444;
+    font-size: 28px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: 10px;
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+}
+
+.ctrl-action:active {
+    background: #ff4444;
+    color: #fff;
+    transform: scale(0.95);
+    box-shadow: 0 0 20px rgba(255, 68, 68, 0.6);
+}
+
 /* Reward Popup */
 #reward-popup {
     position: fixed;

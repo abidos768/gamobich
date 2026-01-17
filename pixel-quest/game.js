@@ -26,13 +26,14 @@ let maxHealth = 3;
 let invincible = 0;
 
 // Player
-const player = { x: 7, y: 6, color: '#6ee7ff' };
+const player = { x: 7, y: 6, color: '#6ee7ff', dir: { x: 0, y: 1 }, isAttacking: false };
 
 // Game objects
 let collectibles = [];
 let triggers = [];
 let particles = [];
 let enemies = [];
+let attackEffect = null; // Store current attack visual
 
 // Audio Context
 let audioCtx;
@@ -41,7 +42,9 @@ const sounds = {
     coin: { type: 'sine', freq: 1000, end: 1500, dur: 0.1 },
     hit: { type: 'sawtooth', freq: 100, end: 50, dur: 0.3 },
     win: { type: 'triangle', freq: 400, end: 800, dur: 0.5 },
-    chest: { type: 'sine', freq: 600, end: 1200, dur: 0.4 }
+    chest: { type: 'sine', freq: 600, end: 1200, dur: 0.4 },
+    attack: { type: 'sawtooth', freq: 300, end: 100, dur: 0.15 },
+    enemyDeath: { type: 'square', freq: 200, end: 50, dur: 0.2 }
 };
 
 function initAudio() {
@@ -85,8 +88,10 @@ function spawnEnemies() {
 
         enemies.push({
             x, y,
+            hp: 2, // Enemies take 2 hits
             moveTimer: 0,
-            color: '#ff4444'
+            color: '#ff4444',
+            knockback: { x: 0, y: 0 }
         });
     }
 }
@@ -94,37 +99,108 @@ function spawnEnemies() {
 function updateEnemies() {
     if (!gameActive) return;
 
-    enemies.forEach(e => {
-        e.moveTimer++;
-        if (e.moveTimer > 30) { // Move every 30 frames (approx 0.5s)
-            e.moveTimer = 0;
-            const dx = Math.sign(player.x - e.x);
-            const dy = Math.sign(player.y - e.y);
+    enemies = enemies.filter(e => e.hp > 0); // Remove dead enemies
 
-            // Try to move towards player
-            if (Math.random() < 0.8) { // 80% chance to track
-                if (Math.abs(player.x - e.x) > Math.abs(player.y - e.y)) {
-                    if (map[e.y][e.x + dx] === 0) e.x += dx;
+    enemies.forEach(e => {
+        // Knockback recovery
+        if (Math.abs(e.knockback.x) > 0.1 || Math.abs(e.knockback.y) > 0.1) {
+            e.knockback.x *= 0.8;
+            e.knockback.y *= 0.8;
+            e.x += e.knockback.x;
+            e.y += e.knockback.y;
+            // Keep bounds
+            e.x = Math.max(1, Math.min(MAP_WIDTH - 2, e.x));
+            e.y = Math.max(1, Math.min(MAP_HEIGHT - 2, e.y));
+            return; // Skip normal movement while being knocked back
+        }
+
+        e.moveTimer++;
+        if (e.moveTimer > 30) {
+            e.moveTimer = 0;
+            // Snapping to grid for cleaner movement
+            const gx = Math.round(e.x);
+            const gy = Math.round(e.y);
+            const dx = Math.sign(player.x - gx);
+            const dy = Math.sign(player.y - gy);
+
+            if (Math.random() < 0.8) {
+                if (Math.abs(player.x - gx) > Math.abs(player.y - gy)) {
+                    if (map[gy][gx + dx] === 0) e.x = gx + dx;
+                    else e.x = gx;
                 } else {
-                    if (map[e.y + dy][e.x] === 0) e.y += dy;
+                    if (map[gy + dy][gx] === 0) e.y = gy + dy;
+                    else e.y = gy;
                 }
             } else {
-                // Random move
                 const rx = (Math.random() < 0.5 ? -1 : 1);
                 const ry = (Math.random() < 0.5 ? -1 : 1);
                 if (Math.random() < 0.5) {
-                    if (map[e.y][e.x + rx] === 0) e.x += rx;
+                    if (map[gy][gx + rx] === 0) e.x = gx + rx;
                 } else {
-                    if (map[e.y + ry][e.x] === 0) e.y += ry;
+                    if (map[gy + ry][gx] === 0) e.y = gy + ry;
                 }
             }
         }
 
         // Collision with player
-        if (e.x === player.x && e.y === player.y && invincible <= 0) {
+        if (Math.round(e.x) === player.x && Math.round(e.y) === player.y && invincible <= 0) {
             takeDamage();
         }
     });
+}
+
+function attack() {
+    if (player.isAttacking || !gameActive) return;
+
+    player.isAttacking = true;
+    playSound('attack');
+
+    // Attack visual
+    attackEffect = {
+        x: player.x + player.dir.x,
+        y: player.y + player.dir.y,
+        life: 10
+    };
+
+    // Check hits
+    enemies.forEach(e => {
+        if (Math.round(e.x) === attackEffect.x && Math.round(e.y) === attackEffect.y) {
+            e.hp--;
+            e.knockback.x = player.dir.x * 0.5;
+            e.knockback.y = player.dir.y * 0.5;
+            e.color = '#fff'; // Flash white
+            setTimeout(() => e.color = '#ff4444', 100);
+
+            if (e.hp <= 0) {
+                killEnemy(e);
+            } else {
+                playSound('hit');
+                createParticles(e.x, e.y, '#fff', 5);
+            }
+        }
+    });
+
+    setTimeout(() => {
+        player.isAttacking = false;
+        attackEffect = null;
+    }, 200);
+}
+
+function killEnemy(e) {
+    playSound('enemyDeath');
+    createParticles(e.x, e.y, '#ff4444', 15);
+    xp += 10;
+    checkLevelUp();
+    showReward('+10 XP');
+
+    // Chance to drop heart
+    if (Math.random() < 0.1 && health < maxHealth) {
+        collectibles.push({
+            x: Math.round(e.x), y: Math.round(e.y),
+            emoji: '❤️', value: 0, xp: 0, heal: 1,
+            animOffset: 0
+        });
+    }
 }
 
 function takeDamage() {
@@ -400,6 +476,12 @@ function stageComplete() {
 
 function movePlayer(dx, dy) {
     if (!gameActive) return;
+
+    // Update facing direction
+    if (dx !== 0 || dy !== 0) {
+        player.dir = { x: dx, y: dy };
+    }
+
     const newX = player.x + dx;
     const newY = player.y + dy;
 
@@ -416,18 +498,24 @@ function movePlayer(dx, dy) {
 function checkCollectibles() {
     collectibles = collectibles.filter(c => {
         if (c.x === player.x && c.y === player.y) {
-            coins += c.value;
-            xp += c.xp;
-            collectiblesGot++;
-            playSound('coin');
+            if (c.heal) {
+                health = Math.min(health + c.heal, maxHealth);
+                playSound('powerup');
+                showReward('❤️ HEALED!');
+            } else {
+                coins += c.value;
+                xp += c.xp;
+                collectiblesGot++;
+                playSound('coin');
+                showReward(`+${c.value}💎 (${collectiblesGot}/${collectiblesNeeded})`);
+
+                if (collectiblesGot >= collectiblesNeeded) {
+                    stageComplete();
+                }
+            }
             createParticles(c.x, c.y, '#ffd700', 8);
-            showReward(`+${c.value}💎 (${collectiblesGot}/${collectiblesNeeded})`);
             updateHUD();
             checkLevelUp();
-
-            if (collectiblesGot >= collectiblesNeeded) {
-                stageComplete();
-            }
             return false;
         }
         return true;
@@ -530,8 +618,12 @@ function drawPlayer() {
     ctx.fillStyle = player.color;
     ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(x + 11, y + 12 + bounce, 4, 4);
-    ctx.fillRect(x + 17, y + 12 + bounce, 4, 4);
+
+    // Eyes direction
+    const ex = player.dir.x * 2;
+    const ey = player.dir.y * 2;
+    ctx.fillRect(x + 11 + ex, y + 12 + ey + bounce, 4, 4);
+    ctx.fillRect(x + 17 + ex, y + 12 + ey + bounce, 4, 4);
 
     ctx.shadowColor = player.color;
     ctx.shadowBlur = 10;
@@ -545,6 +637,19 @@ function drawPlayer() {
         ctx.fillStyle = '#fff';
         ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
         ctx.globalAlpha = 1;
+    }
+
+    // Draw Attack Swing
+    if (attackEffect) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 4;
+        const ax = attackEffect.x * TILE_SIZE + TILE_SIZE / 2;
+        const ay = attackEffect.y * TILE_SIZE + TILE_SIZE / 2;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 12, 0, Math.PI * 2);
+        ctx.stroke();
+        attackEffect.life--;
+        if (attackEffect.life <= 0) attackEffect = null;
     }
 }
 
@@ -586,6 +691,8 @@ document.getElementById('btn-up').addEventListener('click', () => movePlayer(0, 
 document.getElementById('btn-down').addEventListener('click', () => movePlayer(0, 1));
 document.getElementById('btn-left').addEventListener('click', () => movePlayer(-1, 0));
 document.getElementById('btn-right').addEventListener('click', () => movePlayer(1, 0));
+document.getElementById('btn-attack').addEventListener('touchstart', (e) => { e.preventDefault(); attack(); });
+document.getElementById('btn-attack').addEventListener('click', () => attack());
 
 document.addEventListener('keydown', (e) => {
     const keys = {
@@ -593,6 +700,7 @@ document.addEventListener('keydown', (e) => {
         'ArrowLeft': [-1, 0], 'a': [-1, 0], 'ArrowRight': [1, 0], 'd': [1, 0]
     };
     if (keys[e.key]) movePlayer(...keys[e.key]);
+    if (e.key === ' ' || e.key === 'Enter') attack();
 });
 
 // ===== SETTINGS =====
@@ -622,7 +730,7 @@ function applySettings() {
     const position = ctrlPosition.value;
     const offset = btnOffset.value + 'px';
 
-    document.querySelectorAll('.ctrl-btn').forEach(btn => {
+    document.querySelectorAll('.ctrl-btn, .ctrl-action').forEach(btn => {
         btn.style.width = size;
         btn.style.height = size;
         btn.style.fontSize = (parseInt(btnSizeSlider.value) * 0.4) + 'px';
