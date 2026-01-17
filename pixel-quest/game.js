@@ -4,8 +4,9 @@ const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
-const MAP_WIDTH = 16;
-const MAP_HEIGHT = 12;
+const MAP_WIDTH = 11;
+const MAP_HEIGHT = 15;
+
 canvas.width = MAP_WIDTH * TILE_SIZE;
 canvas.height = MAP_HEIGHT * TILE_SIZE;
 
@@ -24,6 +25,16 @@ let gameActive = false; // Start false, wait for click
 let health = 3;
 let maxHealth = 3;
 let invincible = 0;
+let isSaved = false;
+let difficulty = 'normal'; // easy, normal, hard
+
+function getDifficultyMultipliers() {
+    switch (difficulty) {
+        case 'easy': return { enemySpeed: 0.7, timer: 1.5, bossSpeed: 0.8 };
+        case 'hard': return { enemySpeed: 1.3, bossSpeed: 1.2, timer: 0.8 };
+        default: return { enemySpeed: 1.0, timer: 1.0, bossSpeed: 1.0 };
+    }
+}
 
 // Player
 const player = { x: 7, y: 6, color: '#6ee7ff', dir: { x: 0, y: 1 }, isAttacking: false };
@@ -33,6 +44,7 @@ let collectibles = [];
 let triggers = [];
 let particles = [];
 let enemies = [];
+const enemySpeed = 0.05; // Base speed, modified by difficulty
 let projectiles = []; // Boss attacks
 let boss = null;      // Boss object
 let attackEffect = null; // Store current attack visual
@@ -101,6 +113,7 @@ function spawnEnemies() {
 function updateEnemies() {
     if (!gameActive) return;
 
+    const mult = getDifficultyMultipliers();
     enemies = enemies.filter(e => e.hp > 0); // Remove dead enemies
 
     enemies.forEach(e => {
@@ -117,7 +130,7 @@ function updateEnemies() {
         }
 
         e.moveTimer++;
-        if (e.moveTimer > 30) {
+        if (e.moveTimer > 30 / mult.enemySpeed) { // Apply difficulty multiplier to movement speed
             e.moveTimer = 0;
             // Snapping to grid for cleaner movement
             const gx = Math.round(e.x);
@@ -254,82 +267,97 @@ function drawEnemies() {
     });
 }
 
-// Stage maps (16x12)
+// Stage maps (11x15)
 const stages = [
     // Stage 1
     [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 3, 3, 0, 0, 2, 2, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 3, 3, 3, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
     // Stage 2
     [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-        [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-        [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        [1, 0, 2, 2, 0, 1, 0, 2, 2, 0, 1],
+        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
+        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
     // Stage 3
     [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
+        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1],
+        [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
     // Stage 4
     [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 1],
-        [1, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 1],
-        [1, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
+        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
-    // Stage 5
+    // Stage 5 (Boss Room)
     [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ]
 ];
 
@@ -347,8 +375,8 @@ function generateRandomMap() {
             if (y === 0 || y === MAP_HEIGHT - 1 || x === 0 || x === MAP_WIDTH - 1) {
                 row.push(1);
             }
-            // Keep player spawn area clear
-            else if (Math.abs(x - 7) <= 1 && Math.abs(y - 6) <= 1) {
+            // Keep player spawn area clear (Adjusted for bottom-center spawn 5,7)
+            else if (Math.abs(x - 5) <= 1 && Math.abs(y - 7) <= 1) {
                 row.push(0);
             }
             // Random obstacles
@@ -375,11 +403,15 @@ function loadStage(stageNum) {
         map = generateRandomMap();
     }
 
-    player.x = 7;
-    player.y = 6;
+    player.x = 5;
+    player.y = 7;
     collectiblesNeeded = 3 + stage * 2;
     collectiblesGot = 0;
-    timer = Math.max(30, 60 - (stage - 1) * 5);
+
+    const mult = getDifficultyMultipliers();
+    timer = Math.max(30, (60 - (stage - 1) * 5) * mult.timer);
+    enemies = [];
+    boss = null;
     stageTime = timer;
     spawnCollectibles();
     spawnTriggers();
@@ -741,15 +773,17 @@ function drawProjectiles() {
 
 function bossDeath() {
     playSound('win');
-    createParticles(boss.x + 1, boss.y + 1, '#ff0055', 50);
+    const bossX = boss.x;
+    const bossY = boss.y;
+    createParticles(bossX + 1, bossY + 1, '#ff0055', 50);
     boss = null;
     showReward('🏆 BOSS DEFEATED!');
 
     // Drop massive loot
     for (let i = 0; i < 10; i++) {
         collectibles.push({
-            x: Math.round(boss.x + (Math.random() * 2)),
-            y: Math.round(boss.y + (Math.random() * 2)),
+            x: Math.round(bossX + (Math.random() * 2)),
+            y: Math.round(bossY + (Math.random() * 2)),
             emoji: '💎', value: 50, xp: 50,
             animOffset: Math.random()
         });
@@ -820,8 +854,10 @@ function drawParticles() {
 }
 
 function gameLoop() {
+    updateControls();
+
     ctx.fillStyle = '#0f0f1a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height); // Clear screen
 
     updateTimer();
     updateEnemies();
@@ -842,82 +878,152 @@ function gameLoop() {
 }
 
 // Controls
-document.getElementById('btn-up').addEventListener('touchstart', (e) => { e.preventDefault(); movePlayer(0, -1); });
-document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); movePlayer(0, 1); });
-document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); movePlayer(-1, 0); });
-document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); movePlayer(1, 0); });
-document.getElementById('btn-up').addEventListener('click', () => movePlayer(0, -1));
-document.getElementById('btn-down').addEventListener('click', () => movePlayer(0, 1));
-document.getElementById('btn-left').addEventListener('click', () => movePlayer(-1, 0));
-document.getElementById('btn-right').addEventListener('click', () => movePlayer(1, 0));
-document.getElementById('btn-attack').addEventListener('touchstart', (e) => { e.preventDefault(); attack(); });
-document.getElementById('btn-attack').addEventListener('click', () => attack());
+// Controls State
+const inputState = {
+    up: false, down: false, left: false, right: false,
+    moveTimer: 0, moveDelay: 8 // Move every 8 frames
+};
 
-document.addEventListener('keydown', (e) => {
-    const keys = {
-        'ArrowUp': [0, -1], 'w': [0, -1], 'ArrowDown': [0, 1], 's': [0, 1],
-        'ArrowLeft': [-1, 0], 'a': [-1, 0], 'ArrowRight': [1, 0], 'd': [1, 0]
+// Handle Continuous Input
+function updateControls() {
+    if (!gameActive) return;
+
+    if (inputState.up || inputState.down || inputState.left || inputState.right) {
+        if (inputState.moveTimer === 0) {
+            let dx = 0;
+            let dy = 0;
+            if (inputState.up) dy = -1;
+            if (inputState.down) dy = 1;
+            if (inputState.left) dx = -1;
+            if (inputState.right) dx = 1;
+
+            if (dx !== 0 || dy !== 0) {
+                movePlayer(dx, dy);
+                inputState.moveTimer = inputState.moveDelay;
+            }
+        } else {
+            inputState.moveTimer--;
+        }
+    } else {
+        inputState.moveTimer = 0; // Reset delay when stopped
+    }
+}
+
+function setupBtn(id, dir) {
+    const btn = document.getElementById(id);
+    const start = (e) => {
+        if (e.cancelable) e.preventDefault();
+        inputState[dir] = true;
     };
-    if (keys[e.key]) movePlayer(...keys[e.key]);
+    const end = (e) => {
+        if (e.cancelable) e.preventDefault();
+        inputState[dir] = false;
+    };
+
+    btn.addEventListener('touchstart', start, { passive: false });
+    btn.addEventListener('touchend', end, { passive: false });
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', end);
+    btn.addEventListener('mouseleave', end);
+}
+
+setupBtn('btn-up', 'up');
+setupBtn('btn-down', 'down');
+setupBtn('btn-left', 'left');
+setupBtn('btn-right', 'right');
+
+// Attack doesn't need continuous hold
+const btnAttack = document.getElementById('btn-attack');
+const attackHandler = (e) => {
+    if (e.cancelable) e.preventDefault();
+    attack();
+};
+btnAttack.addEventListener('touchstart', attackHandler, { passive: false });
+btnAttack.addEventListener('mousedown', attackHandler);
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key === 'ArrowUp' || e.key === 'w') inputState.up = true;
+    if (e.key === 'ArrowDown' || e.key === 's') inputState.down = true;
+    if (e.key === 'ArrowLeft' || e.key === 'a') inputState.left = true;
+    if (e.key === 'ArrowRight' || e.key === 'd') inputState.right = true;
     if (e.key === ' ' || e.key === 'Enter') attack();
 });
 
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'w') inputState.up = false;
+    if (e.key === 'ArrowDown' || e.key === 's') inputState.down = false;
+    if (e.key === 'ArrowLeft' || e.key === 'a') inputState.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd') inputState.right = false;
+});
+
 // ===== SETTINGS =====
+// Settings Logic
 const settingsPanel = document.getElementById('settings-panel');
 const settingsBtn = document.getElementById('settings-btn');
 const closeSettings = document.getElementById('close-settings');
 const btnSizeSlider = document.getElementById('btn-size');
-const ctrlPosition = document.getElementById('ctrl-position');
 const btnOffset = document.getElementById('btn-offset');
-const controls = document.getElementById('controls');
+const ctrlPosition = document.getElementById('ctrl-position');
+const difficultySelect = document.getElementById('difficulty-select');
 
-// Load saved settings
-function loadSettings() {
-    const saved = localStorage.getItem('pixelquest-settings');
-    if (saved) {
-        const settings = JSON.parse(saved);
-        btnSizeSlider.value = settings.size || 55;
-        ctrlPosition.value = settings.position || 'center';
-        btnOffset.value = settings.offset || 25;
-        applySettings();
-    }
-}
-
-// Apply settings
 function applySettings() {
     const size = btnSizeSlider.value + 'px';
-    const position = ctrlPosition.value;
     const offset = btnOffset.value + 'px';
+    const position = ctrlPosition.value;
 
-    document.querySelectorAll('.ctrl-btn, .ctrl-action').forEach(btn => {
+    const controls = document.getElementById('controls');
+    const ctrlBtns = document.querySelectorAll('.ctrl-btn');
+    const actionBtn = document.getElementById('btn-attack');
+
+    ctrlBtns.forEach(btn => {
         btn.style.width = size;
         btn.style.height = size;
-        btn.style.fontSize = (parseInt(btnSizeSlider.value) * 0.4) + 'px';
     });
+    actionBtn.style.width = size;
+    actionBtn.style.height = size;
 
     controls.style.bottom = offset;
 
-    if (position === 'center') {
-        controls.style.left = '50%';
-        controls.style.transform = 'translateX(-50%)';
-    } else if (position === 'left') {
+    if (position === 'left') {
         controls.style.left = '20px';
+        controls.style.right = 'auto';
         controls.style.transform = 'none';
     } else if (position === 'right') {
         controls.style.left = 'auto';
         controls.style.right = '20px';
         controls.style.transform = 'none';
+    } else {
+        controls.style.left = '50%';
+        controls.style.right = 'auto';
+        controls.style.transform = 'translateX(-50%)';
     }
+
+    difficulty = difficultySelect.value;
 }
 
-// Save settings
 function saveSettings() {
     const settings = {
-        size: btnSizeSlider.value,
-        position: ctrlPosition.value,
-        offset: btnOffset.value
+        btnSize: btnSizeSlider.value,
+        btnOffset: btnOffset.value,
+        ctrlPosition: ctrlPosition.value,
+        difficulty: difficultySelect.value
     };
     localStorage.setItem('pixelquest-settings', JSON.stringify(settings));
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem('pixelquest-settings');
+    if (saved) {
+        const settings = JSON.parse(saved);
+        btnSizeSlider.value = settings.btnSize || 55;
+        btnOffset.value = settings.btnOffset || 25;
+        ctrlPosition.value = settings.ctrlPosition || 'center';
+        difficultySelect.value = settings.difficulty || 'normal';
+        difficulty = settings.difficulty || 'normal';
+        applySettings();
+    }
 }
 
 // Event listeners
@@ -935,9 +1041,10 @@ closeSettings.addEventListener('click', () => {
 btnSizeSlider.addEventListener('input', applySettings);
 ctrlPosition.addEventListener('change', applySettings);
 btnOffset.addEventListener('input', applySettings);
+difficultySelect.addEventListener('change', applySettings);
 
 // Start Screen Logic
-document.getElementById('start-screen').addEventListener('click', () => {
+const startHandler = () => {
     initAudio();
     document.getElementById('start-screen').classList.add('hidden');
     gameActive = true;
@@ -945,7 +1052,14 @@ document.getElementById('start-screen').addEventListener('click', () => {
         health = maxHealth;
         loadStage(1);
     }
-});
+};
+
+const startScreen = document.getElementById('start-screen');
+startScreen.addEventListener('click', startHandler);
+startScreen.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startHandler();
+}, { passive: false });
 
 // Save System
 function saveGame() {
@@ -968,7 +1082,6 @@ function loadGame() {
         stage = state.stage || 1;
         health = state.health || 3;
         maxHealth = state.maxHealth || 3;
-        // Settings loaded separately but kept in sync
     }
 }
 
@@ -982,7 +1095,9 @@ function resetProgress() {
 document.getElementById('reset-progress').addEventListener('click', resetProgress);
 
 // Init
-loadSettings();
-loadGame(); // Load before starting
-loadStage(stage);
-gameLoop();
+window.addEventListener('load', () => {
+    loadSettings();
+    loadGame();
+    loadStage(stage);
+    gameLoop();
+});
