@@ -217,6 +217,60 @@ body {
     }
 }
 
+/* Start Screen */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 15, 26, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+#start-screen.hidden {
+    display: none;
+}
+
+.start-content {
+    text-align: center;
+    animation: bounce 2s infinite;
+}
+
+.start-content h1 {
+    color: #6ee7ff;
+    font-size: 48px;
+    text-shadow: 4px 4px 0 #3a3a5c;
+    margin-bottom: 20px;
+}
+
+.start-content p {
+    color: #ffd700;
+    font-size: 24px;
+    animation: blink 1s infinite;
+}
+
+.pixel-icon {
+    font-size: 64px;
+    margin-top: 20px;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
 /* Settings Button */
 #settings-btn {
     background: none;

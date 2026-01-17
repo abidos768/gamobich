@@ -20,7 +20,10 @@ let timer = stageTime;
 let lastTick = Date.now();
 let collectiblesNeeded = 5;
 let collectiblesGot = 0;
-let gameActive = true;
+let gameActive = false; // Start false, wait for click
+let health = 3;
+let maxHealth = 3;
+let invincible = 0;
 
 // Player
 const player = { x: 7, y: 6, color: '#6ee7ff' };
@@ -29,6 +32,135 @@ const player = { x: 7, y: 6, color: '#6ee7ff' };
 let collectibles = [];
 let triggers = [];
 let particles = [];
+let enemies = [];
+
+// Audio Context
+let audioCtx;
+const sounds = {
+    jump: { type: 'square', freq: 150, end: 300, dur: 0.1 },
+    coin: { type: 'sine', freq: 1000, end: 1500, dur: 0.1 },
+    hit: { type: 'sawtooth', freq: 100, end: 50, dur: 0.3 },
+    win: { type: 'triangle', freq: 400, end: 800, dur: 0.5 },
+    chest: { type: 'sine', freq: 600, end: 1200, dur: 0.4 }
+};
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playSound(name) {
+    if (!audioCtx) return;
+    const s = sounds[name];
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = s.type;
+    osc.frequency.setValueAtTime(s.freq, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(s.end, audioCtx.currentTime + s.dur);
+
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + s.dur);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + s.dur);
+}
+
+// ... (Map arrays remain the same) ...
+
+// Enemy System
+function spawnEnemies() {
+    enemies = [];
+    const count = stage + 1; // More enemies per stage
+    for (let i = 0; i < count; i++) {
+        let x, y;
+        do {
+            x = Math.floor(Math.random() * (MAP_WIDTH - 2)) + 1;
+            y = Math.floor(Math.random() * (MAP_HEIGHT - 2)) + 1;
+        } while (map[y][x] !== 0 || (Math.abs(x - player.x) < 4 && Math.abs(y - player.y) < 4));
+
+        enemies.push({
+            x, y,
+            moveTimer: 0,
+            color: '#ff4444'
+        });
+    }
+}
+
+function updateEnemies() {
+    if (!gameActive) return;
+
+    enemies.forEach(e => {
+        e.moveTimer++;
+        if (e.moveTimer > 30) { // Move every 30 frames (approx 0.5s)
+            e.moveTimer = 0;
+            const dx = Math.sign(player.x - e.x);
+            const dy = Math.sign(player.y - e.y);
+
+            // Try to move towards player
+            if (Math.random() < 0.8) { // 80% chance to track
+                if (Math.abs(player.x - e.x) > Math.abs(player.y - e.y)) {
+                    if (map[e.y][e.x + dx] === 0) e.x += dx;
+                } else {
+                    if (map[e.y + dy][e.x] === 0) e.y += dy;
+                }
+            } else {
+                // Random move
+                const rx = (Math.random() < 0.5 ? -1 : 1);
+                const ry = (Math.random() < 0.5 ? -1 : 1);
+                if (Math.random() < 0.5) {
+                    if (map[e.y][e.x + rx] === 0) e.x += rx;
+                } else {
+                    if (map[e.y + ry][e.x] === 0) e.y += ry;
+                }
+            }
+        }
+
+        // Collision with player
+        if (e.x === player.x && e.y === player.y && invincible <= 0) {
+            takeDamage();
+        }
+    });
+}
+
+function takeDamage() {
+    health--;
+    invincible = 60; // 1 second invincibility
+    playSound('hit');
+    updateHUD();
+    createParticles(player.x, player.y, '#ff0000', 10);
+
+    if (health <= 0) {
+        gameOver();
+    }
+}
+
+function drawEnemies() {
+    enemies.forEach(e => {
+        const x = e.x * TILE_SIZE;
+        const y = e.y * TILE_SIZE;
+        const bounce = Math.sin(Date.now() / 150) * 3;
+
+        // Slime body
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + bounce, 10, Math.PI, 0);
+        ctx.fillRect(x + 6, y + TILE_SIZE / 2 + bounce, 20, 10);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 10, y + TILE_SIZE / 2 + bounce - 2, 4, 4);
+        ctx.fillRect(x + 18, y + TILE_SIZE / 2 + bounce - 2, 4, 4);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x + 12, y + TILE_SIZE / 2 + bounce, 2, 2);
+        ctx.fillRect(x + 20, y + TILE_SIZE / 2 + bounce, 2, 2);
+    });
+}
 
 // Stage maps (16x12)
 const stages = [
@@ -159,6 +291,7 @@ function loadStage(stageNum) {
     stageTime = timer;
     spawnCollectibles();
     spawnTriggers();
+    spawnEnemies();
     updateHUD();
 
     if (stageNum > 5) {
@@ -231,18 +364,25 @@ function updateTimer() {
         timer--;
         updateHUD();
         if (timer <= 0) {
-            gameOver();
+            takeDamage(); // Time out = Damage instead of instant game over
+            timer = 10;   // Give 10s mercy time
+            showReward('⚠️ -1 ❤️ TIME PENALTY!');
         }
     }
+
+    if (invincible > 0) invincible--;
 }
 
 function gameOver() {
     gameActive = false;
-    showReward(`☠️ TIME'S UP! Stage ${stage}`);
+    showReward(`☠️ GAME OVER! Stage ${stage}`);
+    playSound('win'); // Sad win sound?
     setTimeout(() => {
         coins = Math.floor(coins / 2);
+        health = maxHealth;
         loadStage(1);
-        gameActive = true;
+        // gameActive = true; // Wait for click
+        document.getElementById('start-screen').classList.remove('hidden');
     }, 2000);
 }
 
@@ -250,6 +390,7 @@ function stageComplete() {
     gameActive = false;
     const bonus = stage * 50;
     coins += bonus;
+    playSound('win');
     showReward(`🎉 STAGE CLEAR! +${bonus} bonus!`);
     setTimeout(() => {
         loadStage(stage + 1);
@@ -266,6 +407,7 @@ function movePlayer(dx, dy) {
         map[newY][newX] !== 1 && map[newY][newX] !== 3) {
         player.x = newX;
         player.y = newY;
+        playSound('jump');
         checkCollectibles();
         checkTriggers();
     }
@@ -277,6 +419,7 @@ function checkCollectibles() {
             coins += c.value;
             xp += c.xp;
             collectiblesGot++;
+            playSound('coin');
             createParticles(c.x, c.y, '#ffd700', 8);
             showReward(`+${c.value}💎 (${collectiblesGot}/${collectiblesNeeded})`);
             updateHUD();
@@ -300,6 +443,7 @@ function checkTriggers() {
             coins += bonus;
             xp += 25;
             timer += 10; // Bonus time!
+            playSound('chest');
             createParticles(t.x, t.y, '#ff6b9d', 12);
             showReward(`CHEST! +${bonus}💎 +10s⏱️`);
             updateHUD();
@@ -326,6 +470,7 @@ function updateHUD() {
     document.getElementById('timer-count').textContent = timer;
     document.getElementById('xp-fill').style.width = `${(xp / xpToNext) * 100}%`;
     document.getElementById('progress-fill').style.width = `${(collectiblesGot / collectiblesNeeded) * 100}%`;
+    document.getElementById('hearts').textContent = '❤️'.repeat(health);
 
     // Timer color warning
     const timerEl = document.getElementById('timer-count');
@@ -393,6 +538,14 @@ function drawPlayer() {
     ctx.fillStyle = player.color;
     ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
     ctx.shadowBlur = 0;
+
+    // Blink when invincible
+    if (invincible > 0 && Math.floor(invincible / 4) % 2 === 0) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
+        ctx.globalAlpha = 1;
+    }
 }
 
 function drawParticles() {
@@ -411,11 +564,13 @@ function gameLoop() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     updateTimer();
+    updateEnemies();
     updateParticles();
 
     drawMap();
     drawTriggers();
     drawCollectibles();
+    drawEnemies();
     drawPlayer();
     drawParticles();
 
@@ -513,6 +668,17 @@ closeSettings.addEventListener('click', () => {
 btnSizeSlider.addEventListener('input', applySettings);
 ctrlPosition.addEventListener('change', applySettings);
 btnOffset.addEventListener('input', applySettings);
+
+// Start Screen Logic
+document.getElementById('start-screen').addEventListener('click', () => {
+    initAudio();
+    document.getElementById('start-screen').classList.add('hidden');
+    gameActive = true;
+    if (health <= 0) {
+        health = maxHealth;
+        loadStage(1);
+    }
+});
 
 // Init
 loadSettings();
