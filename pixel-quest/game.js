@@ -33,6 +33,8 @@ let collectibles = [];
 let triggers = [];
 let particles = [];
 let enemies = [];
+let projectiles = []; // Boss attacks
+let boss = null;      // Boss object
 let attackEffect = null; // Store current attack visual
 
 // Audio Context
@@ -161,6 +163,20 @@ function attack() {
         y: player.y + player.dir.y,
         life: 10
     };
+
+    // Check Boss Hit
+    if (boss && gameActive && Math.abs((boss.x + 1) - attackEffect.x) < 1.5 && Math.abs((boss.y + 1) - attackEffect.y) < 1.5) {
+        boss.hp--;
+        boss.color = '#fff';
+        setTimeout(() => boss.color = '#ff0055', 100);
+
+        if (boss.hp <= 0) {
+            bossDeath();
+        } else {
+            playSound('hit');
+            createParticles(boss.x + 1, boss.y + 1, '#fff', 10);
+        }
+    }
 
     // Check hits
     enemies.forEach(e => {
@@ -370,11 +386,89 @@ function loadStage(stageNum) {
     spawnEnemies();
     updateHUD();
 
-    if (stageNum > 5) {
+    if (stageNum === 5) {
+        showReward(`👹 BOSS FIGHT! Defeat the Giant Slime!`);
+        spawnBoss();
+    } else if (stageNum > 5) {
         showReward(`🎲 RANDOM STAGE ${stage}!`);
+        spawnCollectibles();
+        spawnEnemies();
     } else {
         showReward(`⭐ STAGE ${stage} - Collect ${collectiblesNeeded}!`);
+        spawnCollectibles();
+        spawnEnemies();
     }
+
+    // Always spawn triggers if applicable
+    spawnTriggers();
+    updateHUD();
+}
+
+function spawnBoss() {
+    boss = {
+        x: MAP_WIDTH / 2 - 1,
+        y: MAP_HEIGHT / 2 - 1,
+        hp: 20,
+        maxHp: 20,
+        color: '#ff0055',
+        timer: 0,
+        phase: 0
+    };
+    enemies = []; // Clear other enemies
+}
+
+function updateBoss() {
+    if (!boss || !gameActive) return;
+
+    // Boss Movement (Slower)
+    boss.timer++;
+    if (boss.timer % 40 === 0) {
+        const dx = Math.sign(player.x - (boss.x + 1)); // Center tracking
+        const dy = Math.sign(player.y - (boss.y + 1));
+
+        let newX = boss.x + dx * 0.5;
+        let newY = boss.y + dy * 0.5;
+
+        // Keep in bounds
+        if (newX > 1 && newX < MAP_WIDTH - 3 && newY > 1 && newY < MAP_HEIGHT - 3) {
+            boss.x = newX;
+            boss.y = newY;
+        }
+    }
+
+    // Boss Attack (Shoot projectile)
+    if (boss.timer % 120 === 0) { // Every 2 seconds
+        const angle = Math.atan2(player.y - (boss.y + 1), player.x - (boss.x + 1));
+        projectiles.push({
+            x: boss.x + 1,
+            y: boss.y + 1,
+            vx: Math.cos(angle) * 0.2,
+            vy: Math.sin(angle) * 0.2,
+            life: 200
+        });
+        playSound('hit'); // reused sound
+    }
+
+    // Collision with player
+    if (Math.abs((boss.x + 1) - player.x) < 1.5 && Math.abs((boss.y + 1) - player.y) < 1.5 && invincible <= 0) {
+        takeDamage();
+    }
+}
+
+function updateProjectiles() {
+    projectiles = projectiles.filter(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+
+        // Hit player
+        if (Math.abs(p.x - player.x) < 0.5 && Math.abs(p.y - player.y) < 0.5 && invincible <= 0) {
+            takeDamage();
+            return false;
+        }
+
+        return p.life > 0 && p.x > 0 && p.x < MAP_WIDTH && p.y > 0 && p.y < MAP_HEIGHT;
+    });
 }
 
 
@@ -468,6 +562,7 @@ function stageComplete() {
     coins += bonus;
     playSound('win');
     showReward(`🎉 STAGE CLEAR! +${bonus} bonus!`);
+    saveGame(); // Add Save
     setTimeout(() => {
         loadStage(stage + 1);
         gameActive = true;
@@ -547,6 +642,7 @@ function checkLevelUp() {
         xpToNext = Math.floor(xpToNext * 1.5);
         createParticles(player.x, player.y, '#c44cff', 20);
         showReward(`🎉 LEVEL UP! Lv.${level}`);
+        saveGame(); // Add Save on Level Up
     }
     updateHUD();
 }
@@ -603,6 +699,65 @@ function drawTriggers() {
         ctx.textBaseline = 'middle';
         ctx.fillText(t.emoji, t.x * TILE_SIZE + TILE_SIZE / 2, t.y * TILE_SIZE + TILE_SIZE / 2);
     });
+}
+
+function drawBoss() {
+    if (!boss) return;
+
+    const x = boss.x * TILE_SIZE;
+    const y = boss.y * TILE_SIZE;
+    const bounce = Math.sin(Date.now() / 200) * 5;
+
+    // Boss Body (2x2 tiles)
+    ctx.fillStyle = boss.color;
+    ctx.beginPath();
+    ctx.arc(x + TILE_SIZE, y + TILE_SIZE + bounce, 40, Math.PI, 0);
+    ctx.fillRect(x + 10, y + TILE_SIZE + bounce, 44, 40);
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 20, y + TILE_SIZE + bounce - 10, 10, 10);
+    ctx.fillRect(x + 40, y + TILE_SIZE + bounce - 10, 10, 10);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 24, y + TILE_SIZE + bounce - 6, 4, 4);
+    ctx.fillRect(x + 44, y + TILE_SIZE + bounce - 6, 4, 4);
+
+    // Health Bar
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x, y - 20, 64, 8);
+    ctx.fillStyle = '#ff0055';
+    ctx.fillRect(x, y - 20, 64 * (boss.hp / boss.maxHp), 8);
+}
+
+function drawProjectiles() {
+    ctx.fillStyle = '#00ff00';
+    projectiles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function bossDeath() {
+    playSound('win');
+    createParticles(boss.x + 1, boss.y + 1, '#ff0055', 50);
+    boss = null;
+    showReward('🏆 BOSS DEFEATED!');
+
+    // Drop massive loot
+    for (let i = 0; i < 10; i++) {
+        collectibles.push({
+            x: Math.round(boss.x + (Math.random() * 2)),
+            y: Math.round(boss.y + (Math.random() * 2)),
+            emoji: '💎', value: 50, xp: 50,
+            animOffset: Math.random()
+        });
+    }
+
+    setTimeout(() => {
+        stageComplete();
+    }, 4000);
 }
 
 function drawPlayer() {
@@ -670,12 +825,16 @@ function gameLoop() {
 
     updateTimer();
     updateEnemies();
+    updateBoss();
+    updateProjectiles();
     updateParticles();
 
     drawMap();
     drawTriggers();
     drawCollectibles();
     drawEnemies();
+    drawBoss();
+    drawProjectiles();
     drawPlayer();
     drawParticles();
 
@@ -788,7 +947,42 @@ document.getElementById('start-screen').addEventListener('click', () => {
     }
 });
 
+// Save System
+function saveGame() {
+    const gameState = {
+        coins, xp, level, xpToNext, stage, health, maxHealth,
+        settings: JSON.parse(localStorage.getItem('pixelquest-settings') || '{}')
+    };
+    localStorage.setItem('pixelquest-save', JSON.stringify(gameState));
+    showReward('💾 SAVED');
+}
+
+function loadGame() {
+    const saved = localStorage.getItem('pixelquest-save');
+    if (saved) {
+        const state = JSON.parse(saved);
+        coins = state.coins || 0;
+        xp = state.xp || 0;
+        level = state.level || 1;
+        xpToNext = state.xpToNext || 50;
+        stage = state.stage || 1;
+        health = state.health || 3;
+        maxHealth = state.maxHealth || 3;
+        // Settings loaded separately but kept in sync
+    }
+}
+
+function resetProgress() {
+    if (confirm('Are you sure you want to reset all progress?')) {
+        localStorage.removeItem('pixelquest-save');
+        location.reload();
+    }
+}
+
+document.getElementById('reset-progress').addEventListener('click', resetProgress);
+
 // Init
 loadSettings();
-loadStage(1);
+loadGame(); // Load before starting
+loadStage(stage);
 gameLoop();
