@@ -26,7 +26,9 @@ let health = 3;
 let maxHealth = 3;
 let invincible = 0;
 let isSaved = false;
+let isDead = false;
 let difficulty = 'normal'; // easy, normal, hard
+let soundEnabled = true;
 
 function getDifficultyMultipliers() {
     switch (difficulty) {
@@ -43,11 +45,17 @@ const player = { x: 7, y: 6, color: '#6ee7ff', dir: { x: 0, y: 1 }, isAttacking:
 let collectibles = [];
 let triggers = [];
 let particles = [];
+let trail = []; // Player movement trail
 let enemies = [];
+
 const enemySpeed = 0.05; // Base speed, modified by difficulty
+let teleporters = []; // REMOVED
+let lastTeleportTime = 0; // REMOVED
 let projectiles = []; // Boss attacks
 let boss = null;      // Boss object
 let attackEffect = null; // Store current attack visual
+
+// Editor State Removed
 
 // Audio Context
 let audioCtx;
@@ -57,6 +65,8 @@ const sounds = {
     hit: { type: 'sawtooth', freq: 100, end: 50, dur: 0.3 },
     win: { type: 'triangle', freq: 400, end: 800, dur: 0.5 },
     chest: { type: 'sine', freq: 600, end: 1200, dur: 0.4 },
+    attack: { type: 'sawtooth', freq: 300, end: 100, dur: 0.15 },
+    enemyDeath: { type: 'square', freq: 200, end: 50, dur: 0.2 },
     attack: { type: 'sawtooth', freq: 300, end: 100, dur: 0.15 },
     enemyDeath: { type: 'square', freq: 200, end: 50, dur: 0.2 },
     powerup: { type: 'sine', freq: 500, end: 900, dur: 0.3 }
@@ -69,7 +79,7 @@ function initAudio() {
 }
 
 function playSound(name) {
-    if (!audioCtx) return;
+    if (!audioCtx || !soundEnabled) return;
     const s = sounds[name];
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -117,6 +127,9 @@ function updateEnemies() {
     const mult = getDifficultyMultipliers();
     enemies = enemies.filter(e => e.hp > 0); // Remove dead enemies
 
+    // Check if player is hidden
+    const isHidden = triggers.some(t => t.type === 'hiding_box' && t.x === player.x && t.y === player.y);
+
     enemies.forEach(e => {
         // Knockback recovery
         if (Math.abs(e.knockback.x) > 0.1 || Math.abs(e.knockback.y) > 0.1) {
@@ -131,23 +144,15 @@ function updateEnemies() {
         }
 
         e.moveTimer++;
-        if (e.moveTimer > 30 / mult.enemySpeed) { // Apply difficulty multiplier to movement speed
+        if (e.moveTimer > 30 / mult.enemySpeed) {
             e.moveTimer = 0;
-            // Snapping to grid for cleaner movement
             const gx = Math.round(e.x);
             const gy = Math.round(e.y);
             const dx = Math.sign(player.x - gx);
             const dy = Math.sign(player.y - gy);
 
-            if (Math.random() < 0.8) {
-                if (Math.abs(player.x - gx) > Math.abs(player.y - gy)) {
-                    if (map[gy][gx + dx] === 0) e.x = gx + dx;
-                    else e.x = gx;
-                } else {
-                    if (map[gy + dy][gx] === 0) e.y = gy + dy;
-                    else e.y = gy;
-                }
-            } else {
+            // If hidden, enemies wander randomly
+            if (isHidden || Math.random() < 0.2) {
                 const rx = (Math.random() < 0.5 ? -1 : 1);
                 const ry = (Math.random() < 0.5 ? -1 : 1);
                 if (Math.random() < 0.5) {
@@ -155,11 +160,22 @@ function updateEnemies() {
                 } else {
                     if (map[gy + ry][gx] === 0) e.y = gy + ry;
                 }
+            } else {
+                // Chase logic (if not hidden)
+                if (Math.random() < 0.8) {
+                    if (Math.abs(player.x - gx) > Math.abs(player.y - gy)) {
+                        if (map[gy][gx + dx] === 0) e.x = gx + dx;
+                        else e.x = gx;
+                    } else {
+                        if (map[gy + dy][gx] === 0) e.y = gy + dy;
+                        else e.y = gy;
+                    }
+                }
             }
         }
 
-        // Collision with player
-        if (Math.round(e.x) === player.x && Math.round(e.y) === player.y && invincible <= 0) {
+        // Collision with player (Skip if hidden)
+        if (!isHidden && Math.round(e.x) === player.x && Math.round(e.y) === player.y && invincible <= 0) {
             takeDamage();
         }
     });
@@ -247,115 +263,137 @@ function takeDamage() {
 
 function drawEnemies() {
     enemies.forEach(e => {
-        const x = e.x * TILE_SIZE;
-        const y = e.y * TILE_SIZE;
-        const bounce = Math.sin(Date.now() / 150) * 3;
+        const ex = e.x * TILE_SIZE + TILE_SIZE / 2;
+        const ey = e.y * TILE_SIZE + TILE_SIZE / 2;
 
-        // Slime body
-        ctx.fillStyle = e.color;
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         ctx.beginPath();
-        ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + bounce, 10, Math.PI, 0);
-        ctx.fillRect(x + 6, y + TILE_SIZE / 2 + bounce, 20, 10);
+        ctx.ellipse(ex, ey + 14, 12, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body - rounded top ghost shape
+        ctx.fillStyle = e.color || '#e85d5d';
+        ctx.beginPath();
+        ctx.arc(ex, ey - 2, 14, Math.PI, 0, false);
+        ctx.lineTo(ex + 14, ey + 10);
+
+        // Wavy bottom
+        ctx.lineTo(ex + 10, ey + 10);
+        ctx.lineTo(ex + 10, ey + 14);
+        ctx.lineTo(ex + 5, ey + 10);
+        ctx.lineTo(ex, ey + 14);
+        ctx.lineTo(ex - 5, ey + 10);
+        ctx.lineTo(ex - 10, ey + 14);
+        ctx.lineTo(ex - 10, ey + 10);
+        ctx.lineTo(ex - 14, ey + 10);
+        ctx.closePath();
         ctx.fill();
 
         // Eyes
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x + 10, y + TILE_SIZE / 2 + bounce - 2, 4, 4);
-        ctx.fillRect(x + 18, y + TILE_SIZE / 2 + bounce - 2, 4, 4);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(x + 12, y + TILE_SIZE / 2 + bounce, 2, 2);
-        ctx.fillRect(x + 20, y + TILE_SIZE / 2 + bounce, 2, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(ex - 5, ey - 2, 5, 0, Math.PI * 2);
+        ctx.arc(ex + 5, ey - 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils
+        ctx.fillStyle = '#2a2a4a';
+        ctx.beginPath();
+        ctx.arc(ex - 5, ey - 1, 3, 0, Math.PI * 2);
+        ctx.arc(ex + 5, ey - 1, 3, 0, Math.PI * 2);
+        ctx.fill();
     });
 }
 
 // Stage maps (11x15)
 const stages = [
-    // Stage 1
+    // Stage 1 - The Meadow (Open & Safe)
     [
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
-        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ],
+    // Stage 2 - The Forest (Winding Paths)
+    [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1],
+        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
+        [1, 2, 2, 0, 1, 1, 1, 0, 0, 2, 1],
+        [1, 2, 0, 0, 1, 0, 1, 0, 0, 2, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+        [1, 2, 0, 0, 1, 1, 1, 0, 0, 2, 1],
+        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
+        [1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ],
+    // Stage 3 - Frozen Lake (Connected Islands)
+    [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 1, 3, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 3, 3, 3, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
+        [1, 1, 0, 3, 3, 2, 3, 3, 0, 1, 1],
+        [1, 3, 0, 0, 2, 0, 2, 0, 0, 3, 1],
+        [1, 1, 0, 3, 3, 2, 3, 3, 0, 1, 1],
+        [1, 0, 0, 0, 3, 3, 3, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 1, 0, 3, 1, 0, 1, 3, 0, 1, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 1],
+        [1, 0, 0, 0, 3, 0, 3, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
-    // Stage 2
+    // Stage 4 - Lava Ruins (Hazard Rooms)
     [
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 1, 0, 2, 2, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
+        [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+        [1, 0, 3, 0, 1, 0, 1, 0, 3, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
-        [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 0, 2, 2, 2, 0, 1, 1, 1],
         [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+        [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+        [1, 0, 1, 0, 3, 3, 3, 0, 1, 0, 1],
+        [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
+        [1, 1, 1, 0, 2, 2, 2, 0, 1, 1, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 2, 0, 0, 0, 2, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 3, 0, 1, 0, 1, 0, 3, 0, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ],
-    // Stage 3
+    // Stage 5 - Boss Arena (Tactical Pillars)
     [
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
-        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1],
-        [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 3, 3, 0, 0, 0, 3, 3, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    ],
-    // Stage 4
-    [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
-        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 0, 0, 0, 0, 2, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    ],
-    // Stage 5 (Boss Room)
-    [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+        [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -379,42 +417,83 @@ const biomes = {
         1: '#b71c1c', // Wall (Red Rock)
         2: '#ff5722', // Obstacle (Hot Rock)
         3: '#bf360c'  // Lava
+    },
+    cyber: {
+        0: '#050510', // Floor (Void)
+        1: '#00ffcc', // Wall (Neon Cyan)
+        2: '#ff00ff', // Obstacle (Neon Magenta)
+        3: '#330033'  // Liquid (Dark Plasma)
     }
 };
 
 let currentBiome = biomes.forest;
 const tileColors = biomes.forest; // Fallback? Unused if we use currentBiome
 
-// Generate random map for stages after 5
-function generateRandomMap() {
+// Seeded random for consistent level generation
+function seededRandom(seed) {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+}
+
+// Generate random map for stages after 5 (now with seeded randomness)
+function generateRandomMap(stageNum) {
+    const seed = stageNum * 1000;
+    let seedOffset = 0;
+
+    // Helper to get next seeded random value
+    const rand = () => seededRandom(seed + seedOffset++);
+
     const newMap = [];
+    // Initialize with floor
     for (let y = 0; y < MAP_HEIGHT; y++) {
-        const row = [];
+        const row = new Array(MAP_WIDTH).fill(0);
+        newMap.push(row);
+    }
+
+    // Add Walls on edges
+    for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            // Walls on edges
             if (y === 0 || y === MAP_HEIGHT - 1 || x === 0 || x === MAP_WIDTH - 1) {
-                row.push(1);
-            }
-            // Keep player spawn area clear (Adjusted for bottom-center spawn 5,7)
-            else if (Math.abs(x - 5) <= 1 && Math.abs(y - 7) <= 1) {
-                row.push(0);
-            }
-            // Random obstacles
-            else {
-                const rand = Math.random();
-                if (rand < 0.08) row.push(1);       // Wall 8%
-                else if (rand < 0.12) row.push(2);  // Grass 4%
-                else if (rand < 0.15) row.push(3);  // Water 3%
-                else row.push(0);                    // Floor
+                newMap[y][x] = 1;
             }
         }
-        newMap.push(row);
+    }
+
+    // Add structural obstacles (Blocks)
+    const numBlocks = Math.floor(rand() * 5) + 3;
+    for (let i = 0; i < numBlocks; i++) {
+        const bx = Math.floor(rand() * (MAP_WIDTH - 4)) + 2;
+        const by = Math.floor(rand() * (MAP_HEIGHT - 4)) + 2;
+        const w = Math.floor(rand() * 3) + 1;
+        const h = Math.floor(rand() * 3) + 1;
+
+        if (Math.abs(bx - 5) > 2 || Math.abs(by - 7) > 2) { // Avoid spawn
+            for (let y = by; y < Math.min(by + h, MAP_HEIGHT - 1); y++) {
+                for (let x = bx; x < Math.min(bx + w, MAP_WIDTH - 1); x++) {
+                    newMap[y][x] = 1; // Wall block
+                }
+            }
+        }
+    }
+
+    // Add scattered hazards (use deterministic pattern based on seed)
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            if (newMap[y][x] === 0) { // If empty
+                if (Math.abs(x - 5) <= 1 && Math.abs(y - 7) <= 1) continue; // Skip spawn
+
+                const r = rand();
+                if (r < 0.05) newMap[y][x] = 2;      // Obstacle
+                else if (r < 0.08) newMap[y][x] = 3; // Liquid
+            }
+        }
     }
     return newMap;
 }
 
 function loadStage(stageNum) {
     stage = stageNum;
+    isDead = false;
 
     // Biome Selection
     if (stage <= 2) currentBiome = biomes.forest;
@@ -427,11 +506,11 @@ function loadStage(stageNum) {
     }
 
 
-    // Use preset maps for stages 1-5, random after
+    // Use preset maps for stages 1-5, seeded random after
     if (stageNum <= 5) {
         map = stages[stageNum - 1];
     } else {
-        map = generateRandomMap();
+        map = generateRandomMap(stageNum);
     }
 
     player.x = 5;
@@ -442,18 +521,23 @@ function loadStage(stageNum) {
     const mult = getDifficultyMultipliers();
     timer = Math.max(30, (60 - (stage - 1) * 5) * mult.timer);
     enemies = [];
+    teleporters = [];
     boss = null;
     stageTime = timer;
     spawnCollectibles();
     spawnTriggers();
     spawnEnemies();
+    spawnEnemies();
+    // spawnTeleporters(); // REMOVED
     updateHUD();
 
     if (stageNum === 5) {
+        showOverlay('boss_warning.png', 3000);
         showReward(`👹 BOSS FIGHT! Defeat the Giant Slime!`);
         spawnBoss();
     } else if (stageNum > 5) {
-        showReward(`🎲 RANDOM STAGE ${stage}!`);
+        const biomeName = Object.keys(biomes).find(key => biomes[key] === currentBiome) || 'Unknown';
+        showReward(`🌌 STAGE ${stage}: ${biomeName.toUpperCase()} ZONE`);
         spawnCollectibles();
         spawnStageHeart();
         spawnEnemies();
@@ -501,8 +585,11 @@ function updateBoss() {
         }
     }
 
+    // Check if player is hidden
+    const isHidden = triggers.some(t => t.type === 'hiding_box' && t.x === player.x && t.y === player.y);
+
     // Boss Attack (Shoot projectile)
-    if (boss.timer % 120 === 0) { // Every 2 seconds
+    if (!isHidden && boss.timer % 120 === 0) { // Every 2 seconds
         const angle = Math.atan2(player.y - (boss.y + 1), player.x - (boss.x + 1));
         projectiles.push({
             x: boss.x + 1,
@@ -515,19 +602,22 @@ function updateBoss() {
     }
 
     // Collision with player
-    if (Math.abs((boss.x + 1) - player.x) < 1.5 && Math.abs((boss.y + 1) - player.y) < 1.5 && invincible <= 0) {
+    if (!isHidden && Math.abs((boss.x + 1) - player.x) < 1.5 && Math.abs((boss.y + 1) - player.y) < 1.5 && invincible <= 0) {
         takeDamage();
     }
 }
 
 function updateProjectiles() {
+    // Check if player is hidden
+    const isHidden = triggers.some(t => t.type === 'hiding_box' && t.x === player.x && t.y === player.y);
+
     projectiles = projectiles.filter(p => {
         p.x += p.vx;
         p.y += p.vy;
         p.life--;
 
-        // Hit player
-        if (Math.abs(p.x - player.x) < 0.5 && Math.abs(p.y - player.y) < 0.5 && invincible <= 0) {
+        // Hit player (Skip if hidden)
+        if (!isHidden && Math.abs(p.x - player.x) < 0.5 && Math.abs(p.y - player.y) < 0.5 && invincible <= 0) {
             takeDamage();
             return false;
         }
@@ -536,6 +626,9 @@ function updateProjectiles() {
     });
 }
 
+
+
+// spawnTeleporters removed
 
 function spawnCollectibles() {
     collectibles = [];
@@ -607,11 +700,19 @@ function spawnStageHeart() {
 
 function spawnTriggers() {
     triggers = [];
-    if (stage >= 2) {
-        triggers.push({ x: 2, y: 2, type: 'chest', opened: false, emoji: '📦' });
-    }
-    if (stage >= 4) {
-        triggers.push({ x: 9, y: 7, type: 'chest', opened: false, emoji: '📦' });
+    const count = Math.min(stage, 5); // 1 box per stage, max 5
+    for (let i = 0; i < count; i++) {
+        let x, y, tries = 0;
+        do {
+            x = Math.floor(Math.random() * (MAP_WIDTH - 2)) + 1;
+            y = Math.floor(Math.random() * (MAP_HEIGHT - 2)) + 1;
+            tries++;
+        } while ((map[y][x] !== 0 || (x === player.x && y === player.y) ||
+            triggers.some(t => t.x === x && t.y === y)) && tries < 100);
+
+        if (tries < 100) {
+            triggers.push({ x, y, type: 'hiding_box' });
+        }
     }
 }
 
@@ -632,6 +733,12 @@ function updateParticles() {
         p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.03;
         return p.life > 0;
     });
+
+    // Update player trail
+    trail = trail.filter(t => {
+        t.life -= 0.1;
+        return t.life > 0;
+    });
 }
 
 function updateTimer() {
@@ -651,17 +758,15 @@ function updateTimer() {
     if (invincible > 0) invincible--;
 }
 
-function gameOver() {
-    gameActive = false;
-    showReward(`☠️ GAME OVER! Stage ${stage}`);
-    playSound('win'); // Sad win sound?
-    setTimeout(() => {
-        coins = Math.floor(coins / 2);
-        health = maxHealth;
-        loadStage(1);
-        // gameActive = true; // Wait for click
-        document.getElementById('start-screen').classList.remove('hidden');
-    }, 2000);
+// Old gameOver removed
+
+
+function forceRestart() {
+    isDead = false;
+    coins = Math.floor(coins / 2);
+    health = maxHealth;
+    loadStage(1);
+    document.getElementById('start-screen').classList.remove('hidden');
 }
 
 function stageComplete() {
@@ -690,13 +795,23 @@ function movePlayer(dx, dy) {
 
     if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT &&
         map[newY][newX] !== 1 && map[newY][newX] !== 3) {
+
+        // Add trail
+        trail.push({ x: player.x, y: player.y, direction: player.dir, life: 1.0 });
+
         player.x = newX;
         player.y = newY;
         playSound('jump');
         checkCollectibles();
         checkTriggers();
+        playSound('jump');
+        checkCollectibles();
+        checkTriggers();
+        // checkTeleporters(); // REMOVED
     }
 }
+
+// checkTeleporters removed
 
 function checkCollectibles() {
     collectibles = collectibles.filter(c => {
@@ -726,21 +841,7 @@ function checkCollectibles() {
 }
 
 function checkTriggers() {
-    triggers.forEach(t => {
-        if (t.x === player.x && t.y === player.y && !t.opened) {
-            t.opened = true;
-            t.emoji = '🎁';
-            const bonus = 20 + level * 5;
-            coins += bonus;
-            xp += 25;
-            timer += 10; // Bonus time!
-            playSound('chest');
-            createParticles(t.x, t.y, '#ff6b9d', 12);
-            showReward(`CHEST! +${bonus}💎 +10s⏱️`);
-            updateHUD();
-            checkLevelUp();
-        }
-    });
+    // Stealth boxes are passive, no logic needed here
 }
 
 function checkLevelUp() {
@@ -778,34 +879,205 @@ function showReward(text) {
     setTimeout(() => popup.classList.add('hidden'), 1000);
 }
 
+function showOverlay(src, duration = 2000) {
+    const container = document.getElementById('image-overlay');
+    const img = document.getElementById('overlay-img');
+    if (!container || !img) return; // Safety
+    img.src = src;
+    container.classList.remove('hidden');
+
+    if (duration > 0) {
+        setTimeout(() => {
+            container.classList.add('hidden');
+        }, duration);
+    }
+}
+
 function drawMap() {
+    // Clear with specific background if needed, though gameLoop does it.
+
+    // Draw grid lines
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= MAP_WIDTH; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * TILE_SIZE, 0);
+        ctx.lineTo(i * TILE_SIZE, canvas.height);
+        ctx.stroke();
+    }
+    for (let i = 0; i <= MAP_HEIGHT; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * TILE_SIZE);
+        ctx.lineTo(canvas.width, i * TILE_SIZE);
+        ctx.stroke();
+    }
+
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            ctx.fillStyle = currentBiome[map[y][x]];
-            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            const tile = map[y][x];
+
+            // Walls (1)
+            if (tile === 1) {
+                ctx.fillStyle = (currentBiome && currentBiome[1]) ? currentBiome[1] : '#5a5a8c';
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                // 3D effect bevel
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, 4);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE + TILE_SIZE - 4, TILE_SIZE, 4);
+            }
+            // Obstacles (2) - Detailed Bushes
+            else if (tile === 2) {
+                const bx = x * TILE_SIZE + TILE_SIZE / 2;
+                const by = y * TILE_SIZE + TILE_SIZE / 2;
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+                ctx.beginPath();
+                ctx.ellipse(bx, by + 10, 12, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Detailed Leaf Clusters
+                const leafClusters = [
+                    { ox: -5, oy: -3, size: 7 },
+                    { ox: 5, oy: -3, size: 7 },
+                    { ox: 0, oy: -6, size: 8 },
+                    { ox: -6, oy: 2, size: 6 },
+                    { ox: 6, oy: 2, size: 6 },
+                    { ox: 0, oy: 3, size: 7 },
+                ];
+
+                const baseColor = (currentBiome && currentBiome[2]) ? currentBiome[2] : '#3a6a3a';
+                // Adjust for crude "lighter" color
+                let lightColor = '#4a7c4a';
+                if (baseColor === '#80deea') lightColor = '#b2ebf2'; // Ice
+                if (baseColor === '#ff5722') lightColor = '#ff8a65'; // Lava
+
+                leafClusters.forEach(cluster => {
+                    // Base
+                    ctx.fillStyle = baseColor;
+                    ctx.beginPath();
+                    ctx.arc(bx + cluster.ox, by + cluster.oy, cluster.size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Highlight
+                    ctx.fillStyle = lightColor;
+                    ctx.beginPath();
+                    ctx.arc(bx + cluster.ox - 1, by + cluster.oy - 1, cluster.size - 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            // Liquid/Hazard (3)
+            else if (tile === 3) {
+                ctx.fillStyle = (currentBiome && currentBiome[3]) ? currentBiome[3] : '#2a4a7a';
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                // Wavy animation
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                const offset = Math.sin(Date.now() / 500 + x) * 5;
+                ctx.beginPath();
+                ctx.arc(x * TILE_SIZE + TILE_SIZE / 2 + offset, y * TILE_SIZE + TILE_SIZE / 2, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
     }
 }
 
+function drawTeleporters() {
+    teleporters.forEach(t => {
+        drawPixelIcon('🌀', t.x * TILE_SIZE, t.y * TILE_SIZE, 0);
+    });
+}
+
+// drawTeleporters removed
+
 function drawCollectibles() {
     const time = Date.now() / 200;
     collectibles.forEach(c => {
-        const bounce = Math.sin(time + c.animOffset) * 3;
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(c.emoji, c.x * TILE_SIZE + TILE_SIZE / 2, c.y * TILE_SIZE + TILE_SIZE / 2 + bounce);
+        const cx = c.x * TILE_SIZE + TILE_SIZE / 2;
+        const cy = c.y * TILE_SIZE + TILE_SIZE / 2 + Math.sin(time + c.animOffset) * 3;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 14, 10, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Special rendering for known types or fallback to emoji text
+        if (c.emoji === '💎' || c.emoji === '⭐') {
+            // Coin/Gem body
+            ctx.fillStyle = (c.emoji === '💎') ? '#4fc3f7' : '#ffd700';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner
+            ctx.strokeStyle = '#rgba(255,255,255,0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Shine
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(cx - 3, cy - 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        else if (c.emoji === '❤️') {
+            // Heart
+            ctx.fillStyle = '#ff4444';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('❤️', cx, cy);
+        }
+        else {
+            // Text Fallback
+            ctx.fillStyle = '#fff';
+            ctx.font = '22px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(c.emoji, cx, cy);
+        }
     });
 }
 
 function drawTriggers() {
     triggers.forEach(t => {
-        ctx.font = '22px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t.emoji, t.x * TILE_SIZE + TILE_SIZE / 2, t.y * TILE_SIZE + TILE_SIZE / 2);
+        if (t.type === 'hiding_box') {
+            const x = t.x * TILE_SIZE;
+            const y = t.y * TILE_SIZE;
+            const isPlayerHere = (t.x === player.x && t.y === player.y);
+
+            if (isPlayerHere) {
+                // Closed Box (Hiding Player)
+                ctx.fillStyle = '#008800';
+                ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+
+                // Lid
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 12);
+
+                ctx.strokeStyle = '#004400';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+
+                // "Hidden" Label
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText('HIDDEN', x + TILE_SIZE / 2, y - 5);
+            } else {
+                // Open Box (Inviting)
+                ctx.fillStyle = '#006600'; // Dark inside
+                ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+
+                ctx.fillStyle = '#00ff00'; // Flaps
+                ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, 4); // Top flap
+                ctx.fillRect(x + 2, y + 26, TILE_SIZE - 4, 4); // Bottom flap
+                ctx.fillRect(x + 2, y + 2, 4, TILE_SIZE - 4); // Left flap
+                ctx.fillRect(x + 26, y + 2, 4, TILE_SIZE - 4); // Right flap
+            }
+        }
     });
 }
 
@@ -871,37 +1143,67 @@ function bossDeath() {
 }
 
 function drawPlayer() {
-    const x = player.x * TILE_SIZE;
-    const y = player.y * TILE_SIZE;
-    const bounce = Math.sin(Date.now() / 150) * 2;
+    // Skip if hidden in box
+    const isHidden = triggers.some(t => t.type === 'hiding_box' && t.x === player.x && t.y === player.y);
+    if (isHidden) return;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    // Draw Trail
+    trail.forEach(t => {
+        ctx.globalAlpha = t.life * 0.3;
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.arc(t.x * TILE_SIZE + TILE_SIZE / 2, t.y * TILE_SIZE + TILE_SIZE / 2, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    const px = player.x * TILE_SIZE + TILE_SIZE / 2;
+    const py = player.y * TILE_SIZE + TILE_SIZE / 2;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.beginPath();
-    ctx.ellipse(x + TILE_SIZE / 2, y + TILE_SIZE - 4, 10, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(px, py + 14, 12, 4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = player.color;
-    ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
-    ctx.fillStyle = '#1a1a2e';
+    // Body - Rounded Character
+    ctx.fillStyle = player.color; // '#6ba3d4' generally
+    ctx.beginPath();
+    ctx.arc(px, py, 14, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Eyes direction
-    const ex = player.dir.x * 2;
-    const ey = player.dir.y * 2;
-    ctx.fillRect(x + 11 + ex, y + 12 + ey + bounce, 4, 4);
-    ctx.fillRect(x + 17 + ex, y + 12 + ey + bounce, 4, 4);
+    // Face
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(px - 4, py - 2, 4, 0, Math.PI * 2); // Left Eye White
+    ctx.arc(px + 4, py - 2, 4, 0, Math.PI * 2); // Right Eye White
+    ctx.fill();
 
-    ctx.shadowColor = player.color;
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = player.color;
-    ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
-    ctx.shadowBlur = 0;
+    // Pupils (Move with direction)
+    const lookX = player.dir.x * 2;
+    const lookY = player.dir.y * 2;
+
+    ctx.fillStyle = '#2a2a4a';
+    ctx.beginPath();
+    ctx.arc(px - 4 + lookX, py - 2 + lookY, 2, 0, Math.PI * 2);
+    ctx.arc(px + 4 + lookX, py - 2 + lookY, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Smile
+    ctx.strokeStyle = '#2a2a4a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px, py + 2, 6, 0.2, Math.PI - 0.2);
+    ctx.stroke();
 
     // Blink when invincible
     if (invincible > 0 && Math.floor(invincible / 4) % 2 === 0) {
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x + 8, y + 8 + bounce, 16, 16);
-        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.arc(px, py, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
     }
 
     // Draw Attack Swing
@@ -911,7 +1213,7 @@ function drawPlayer() {
         const ax = attackEffect.x * TILE_SIZE + TILE_SIZE / 2;
         const ay = attackEffect.y * TILE_SIZE + TILE_SIZE / 2;
         ctx.beginPath();
-        ctx.arc(ax, ay, 12, 0, Math.PI * 2);
+        ctx.arc(ax, ay, 14, 0, Math.PI * 2);
         ctx.stroke();
         attackEffect.life--;
         if (attackEffect.life <= 0) attackEffect = null;
@@ -932,7 +1234,7 @@ function drawParticles() {
 function gameLoop() {
     updateControls();
 
-    ctx.fillStyle = '#0f0f1a';
+    ctx.fillStyle = '#0f0f1e'; // Dark Deep Blue background from snippet
     ctx.fillRect(0, 0, canvas.width, canvas.height); // Clear screen
 
     updateTimer();
@@ -943,6 +1245,7 @@ function gameLoop() {
 
     drawMap();
     drawTriggers();
+    // drawTeleporters(); // REMOVED
     drawCollectibles();
     drawEnemies();
     drawBoss();
@@ -957,7 +1260,7 @@ function gameLoop() {
 // Controls State
 const inputState = {
     up: false, down: false, left: false, right: false,
-    moveTimer: 0, moveDelay: 8 // Move every 8 frames
+    moveTimer: 0, moveDelay: 22 // Move every 22 frames (much slower)
 };
 
 // Handle Continuous Input
@@ -1034,6 +1337,89 @@ document.addEventListener('keyup', (e) => {
     if (e.key === 'ArrowRight' || e.key === 'd') inputState.right = false;
 });
 
+// ===== SHOP =====
+const shopPanel = document.getElementById('shop-panel');
+const shopBtn = document.getElementById('shop-btn');
+const closeShopBtn = document.getElementById('close-shop');
+const buyHeartBtn = document.getElementById('buy-heart');
+const buyFullHealBtn = document.getElementById('buy-full-heal');
+const shopMessage = document.getElementById('shop-message');
+
+const HEART_COST = 50;
+const FULL_HEAL_COST = 100;
+
+function updateShopButtons() {
+    // Allow buying when dead (health = 0) or when not at max health
+    buyHeartBtn.disabled = coins < HEART_COST || (health >= maxHealth && !isDead);
+    buyFullHealBtn.disabled = coins < FULL_HEAL_COST || (health >= maxHealth && !isDead);
+}
+
+function buyHeart() {
+    if (coins >= HEART_COST && (health < maxHealth || isDead)) {
+        coins -= HEART_COST;
+        const wasRevive = isDead;
+        if (isDead) {
+            health = 1;
+            isDead = false;
+        } else {
+            health = Math.min(health + 1, maxHealth);
+        }
+        playSound('powerup');
+        shopMessage.textContent = wasRevive ? '🔄 REVIVED! +1 Heart!' : '❤️ +1 Heart restored!';
+        shopMessage.style.color = '#44ff44';
+        updateHUD();
+        updateShopButtons();
+        setTimeout(() => { shopMessage.textContent = ''; }, 1500);
+    } else if (health >= maxHealth && !isDead) {
+        shopMessage.textContent = 'Already at full health!';
+        shopMessage.style.color = '#ff6b9d';
+    } else {
+        shopMessage.textContent = 'Not enough coins!';
+        shopMessage.style.color = '#ff6b9d';
+    }
+}
+
+function buyFullHeal() {
+    if (coins >= FULL_HEAL_COST && (health < maxHealth || isDead)) {
+        coins -= FULL_HEAL_COST;
+        const wasRevive = isDead;
+        isDead = false;
+        health = maxHealth;
+        playSound('powerup');
+        shopMessage.textContent = wasRevive ? '🔄 REVIVED! Full health!' : '❤️❤️❤️ Full health restored!';
+        shopMessage.style.color = '#44ff44';
+        updateHUD();
+        updateShopButtons();
+        setTimeout(() => { shopMessage.textContent = ''; }, 1500);
+    } else if (health >= maxHealth && !isDead) {
+        shopMessage.textContent = 'Already at full health!';
+        shopMessage.style.color = '#ff6b9d';
+    } else {
+        shopMessage.textContent = 'Not enough coins!';
+        shopMessage.style.color = '#ff6b9d';
+    }
+}
+
+shopBtn.addEventListener('click', () => {
+    shopPanel.classList.remove('hidden');
+    shopMessage.textContent = '';
+    updateShopButtons();
+    gameActive = false;
+});
+
+closeShopBtn.addEventListener('click', () => {
+    shopPanel.classList.add('hidden');
+    if (isDead) {
+        // Player chose not to revive, restart game
+        forceRestart();
+    } else {
+        gameActive = true;
+    }
+});
+
+buyHeartBtn.addEventListener('click', buyHeart);
+buyFullHealBtn.addEventListener('click', buyFullHeal);
+
 // ===== SETTINGS =====
 // Settings Logic
 const settingsPanel = document.getElementById('settings-panel');
@@ -1043,6 +1429,7 @@ const btnSizeSlider = document.getElementById('btn-size');
 const btnOffset = document.getElementById('btn-offset');
 const ctrlPosition = document.getElementById('ctrl-position');
 const difficultySelect = document.getElementById('difficulty-select');
+const soundToggle = document.getElementById('sound-toggle');
 
 function applySettings() {
     const size = btnSizeSlider.value + 'px';
@@ -1077,6 +1464,7 @@ function applySettings() {
     }
 
     difficulty = difficultySelect.value;
+    soundEnabled = soundToggle.value === 'on';
 }
 
 function saveSettings() {
@@ -1084,7 +1472,8 @@ function saveSettings() {
         btnSize: btnSizeSlider.value,
         btnOffset: btnOffset.value,
         ctrlPosition: ctrlPosition.value,
-        difficulty: difficultySelect.value
+        difficulty: difficultySelect.value,
+        sound: soundToggle.value
     };
     localStorage.setItem('pixelquest-settings', JSON.stringify(settings));
 }
@@ -1098,6 +1487,8 @@ function loadSettings() {
         ctrlPosition.value = settings.ctrlPosition || 'center';
         difficultySelect.value = settings.difficulty || 'normal';
         difficulty = settings.difficulty || 'normal';
+        soundToggle.value = settings.sound || 'on';
+        soundEnabled = settings.sound !== 'off';
         applySettings();
     }
 }
@@ -1118,18 +1509,37 @@ btnSizeSlider.addEventListener('input', applySettings);
 ctrlPosition.addEventListener('change', applySettings);
 btnOffset.addEventListener('input', applySettings);
 difficultySelect.addEventListener('change', applySettings);
+soundToggle.addEventListener('change', applySettings);
 
-// Start Screen Logic
-const startHandler = () => {
+// Start Handler
+function startHandler() {
     initAudio();
     document.getElementById('start-screen').classList.add('hidden');
     gameActive = true;
-    if (health <= 0) {
-        health = maxHealth;
-        loadStage(1);
-    }
-};
+}
 
+function gameOver() {
+    gameActive = false;
+    isDead = true;
+    playSound('hit');
+
+    // Instant Restart / simplified death
+    showReward(`☠️ OUCH! Try again!`);
+    createParticles(player.x, player.y, '#ff0000', 20);
+
+    setTimeout(() => {
+        // Reset health and restart level immediately
+        health = maxHealth;
+        isDead = false;
+        coins = Math.max(0, coins - 10);
+        updateHUD();
+        loadStage(stage);
+        gameActive = true;
+    }, 1500);
+}
+
+// ===== EDITOR =====
+// Start Screen Logic
 const startScreen = document.getElementById('start-screen');
 startScreen.addEventListener('click', startHandler);
 startScreen.addEventListener('touchstart', (e) => {
@@ -1155,8 +1565,9 @@ function loadGame() {
         xp = state.xp || 0;
         level = state.level || 1;
         xpToNext = state.xpToNext || 50;
-        stage = state.stage || 1;
-        health = state.health || maxHealth;
+        // Always start at stage 1
+        stage = 1;
+        health = maxHealth;
     }
 }
 

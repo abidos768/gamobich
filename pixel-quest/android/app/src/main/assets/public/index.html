@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pixel Quest</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="icon.png" type="image/x-icon">
+    <link rel="apple-touch-icon" href="icon.png">
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="start-screen">
+            <div class="start-content">
+                <h1>PIXEL QUEST</h1>
+                <p>Click to Start</p>
+                <div class="pixel-icon">👾</div>
+            </div>
+        </div>
+        <div id="hud">
+            <div id="hearts">❤️❤️❤️</div>
+            <div id="timer">⏱️ <span id="timer-count">60</span></div>
+            <div id="stage">📍 <span id="stage-count">1</span></div>
+            <div id="coins">💎 <span id="coin-count">0</span></div>
+            <div id="level">⭐ <span id="level-count">1</span></div>
+            <button id="settings-btn">⚙️</button>
+        </div>
+        <div id="progress-bar">
+            <div id="progress-fill"></div>
+        </div>
+        <canvas id="game-canvas"></canvas>
+        <div id="xp-container">
+            <div id="xp-bar">
+                <div id="xp-fill"></div>
+            </div>
+        </div>
+        <div id="reward-popup" class="hidden">
+            <div class="reward-content">
+                <span class="reward-text"></span>
+            </div>
+        </div>
+
+        <!-- Shop Panel -->
+
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="hidden">
+            <div class="settings-content">
+                <h3>⚙️ Controls</h3>
+                <div class="setting-row">
+                    <span>Difficulty</span>
+                    <select id="difficulty-select">
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <span>Button Size</span>
+                    <input type="range" id="btn-size" min="40" max="80" value="55">
+                </div>
+                <div class="setting-row">
+                    <span>Position</span>
+                    <select id="ctrl-position">
+                        <option value="center">Center</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <span>Bottom Offset</span>
+                    <input type="range" id="btn-offset" min="10" max="100" value="25">
+                </div>
+                <div class="setting-row">
+                    <button id="reset-progress" style="background: #ff4444; width: 100%; margin-top: 10px;">Reset
+                        Progress</button>
+                </div>
+                <button id="close-settings">Save & Close</button>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="btn-up" class="ctrl-btn">▲</button>
+            <div class="ctrl-row">
+                <button id="btn-left" class="ctrl-btn">◀</button>
+                <button id="btn-down" class="ctrl-btn">▼</button>
+                <button id="btn-right" class="ctrl-btn">▶</button>
+            </div>
+            <button id="btn-attack" class="ctrl-action">⚔️</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+
+</html>

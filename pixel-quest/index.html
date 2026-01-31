@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="icon.png" type="image/x-icon">
     <link rel="apple-touch-icon" href="icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -25,6 +26,7 @@
             <div id="stage">📍 <span id="stage-count">1</span></div>
             <div id="coins">💎 <span id="coin-count">0</span></div>
             <div id="level">⭐ <span id="level-count">1</span></div>
+            <button id="shop-btn">🛒</button>
             <button id="settings-btn">⚙️</button>
         </div>
         <div id="progress-bar">
@@ -36,61 +38,89 @@
                 <div id="xp-fill"></div>
             </div>
         </div>
+
+
         <div id="reward-popup" class="hidden">
             <div class="reward-content">
                 <span class="reward-text"></span>
             </div>
         </div>
+    </div>
+    <!-- Overlay Removed -->
 
-        <!-- Shop Panel -->
-
-
-        <!-- Settings Panel -->
-        <div id="settings-panel" class="hidden">
-            <div class="settings-content">
-                <h3>⚙️ Controls</h3>
-                <div class="setting-row">
-                    <span>Difficulty</span>
-                    <select id="difficulty-select">
-                        <option value="easy">Easy</option>
-                        <option value="normal" selected>Normal</option>
-                        <option value="hard">Hard</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <span>Button Size</span>
-                    <input type="range" id="btn-size" min="40" max="80" value="55">
-                </div>
-                <div class="setting-row">
-                    <span>Position</span>
-                    <select id="ctrl-position">
-                        <option value="center">Center</option>
-                        <option value="left">Left</option>
-                        <option value="right">Right</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <span>Bottom Offset</span>
-                    <input type="range" id="btn-offset" min="10" max="100" value="25">
-                </div>
-                <div class="setting-row">
-                    <button id="reset-progress" style="background: #ff4444; width: 100%; margin-top: 10px;">Reset
-                        Progress</button>
-                </div>
-                <button id="close-settings">Save & Close</button>
+    <!-- Shop Panel -->
+    <div id="shop-panel" class="hidden">
+        <div class="shop-content">
+            <h3>🛒 Shop</h3>
+            <div class="shop-item">
+                <span class="shop-item-name">❤️ Restore Heart</span>
+                <span class="shop-item-price">50 💎</span>
+                <button id="buy-heart">Buy</button>
             </div>
-        </div>
-
-        <div id="controls">
-            <button id="btn-up" class="ctrl-btn">▲</button>
-            <div class="ctrl-row">
-                <button id="btn-left" class="ctrl-btn">◀</button>
-                <button id="btn-down" class="ctrl-btn">▼</button>
-                <button id="btn-right" class="ctrl-btn">▶</button>
+            <div class="shop-item">
+                <span class="shop-item-name">❤️❤️ Full Heal</span>
+                <span class="shop-item-price">100 💎</span>
+                <button id="buy-full-heal">Buy</button>
             </div>
-            <button id="btn-attack" class="ctrl-action">⚔️</button>
+            <p id="shop-message"></p>
+            <button id="close-shop">Close</button>
         </div>
     </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="hidden">
+        <div class="settings-content">
+            <h3>⚙️ Settings</h3>
+            <div class="setting-row">
+                <span>Sound</span>
+                <select id="sound-toggle">
+                    <option value="on" selected>On</option>
+                    <option value="off">Off</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span>Difficulty</span>
+                <select id="difficulty-select">
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span>Button Size</span>
+                <input type="range" id="btn-size" min="40" max="80" value="55">
+            </div>
+            <div class="setting-row">
+                <span>Position</span>
+                <select id="ctrl-position">
+                    <option value="center">Center</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span>Bottom Offset</span>
+                <input type="range" id="btn-offset" min="10" max="100" value="25">
+            </div>
+            <div class="setting-row">
+                <button id="reset-progress" style="background: #ff4444; width: 100%; margin-top: 10px;">Reset
+                    Progress</button>
+            </div>
+            <button id="close-settings">Save & Close</button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button id="btn-up" class="ctrl-btn">▲</button>
+        <div class="ctrl-row">
+            <button id="btn-left" class="ctrl-btn">◀</button>
+            <button id="btn-down" class="ctrl-btn">▼</button>
+            <button id="btn-right" class="ctrl-btn">▶</button>
+        </div>
+        <button id="btn-attack" class="ctrl-action">⚔️</button>
+    </div>
+    </div>
+    <div class="scanlines"></div>
     <script src="game.js"></script>
 </body>
 
